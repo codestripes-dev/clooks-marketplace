@@ -1,0 +1,9 @@
+{
+  "name": "clooks-core-hooks",
+  "description": "Curated zero-config production hooks for clooks: command safety, git protection, tool hygiene, and tmux notifications",
+  "version": "0.1.0",
+  "author": { "name": "Clooks", "email": "hello@clooks.cc" },
+  "repository": "https://github.com/codestripes-dev/clooks-marketplace",
+  "license": "MIT",
+  "keywords": ["clooks", "hooks", "safety", "git", "tmux"]
+}

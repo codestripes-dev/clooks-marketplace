@@ -1,0 +1,29 @@
+{
+  "$schema": "https://clooks.cc/clooks-pack.schema.json",
+  "version": 1,
+  "name": "clooks-example-hooks",
+  "description": "Educational hooks demonstrating clooks features: lifecycle, config, events, and debugging",
+  "author": "codestripes-dev",
+  "license": "MIT",
+  "repository": "https://github.com/codestripes-dev/clooks-marketplace",
+  "hooks": {
+    "debug-payload": {
+      "path": "hooks/debug-payload.ts",
+      "description": "Echoes hook payload into conversation context when CLOOKS_DEBUG=true",
+      "events": ["PreToolUse", "UserPromptSubmit", "PermissionRequest", "Stop", "SubagentStop", "ConfigChange", "SessionStart", "PostToolUse", "PostToolUseFailure", "Notification", "SubagentStart", "SessionEnd", "InstructionsLoaded", "WorktreeRemove", "PreCompact", "TeammateIdle", "TaskCompleted"],
+      "autoEnable": false
+    },
+    "lifecycle-example": {
+      "path": "hooks/lifecycle-example.ts",
+      "description": "Demonstrates beforeHook/afterHook lifecycle, config schema, and branch gating",
+      "events": ["PreToolUse"],
+      "autoEnable": false
+    },
+    "kitchen-sink": {
+      "path": "hooks/kitchen-sink.ts",
+      "description": "Handler for every event — reference showing available context fields",
+      "events": ["PreToolUse", "PostToolUse", "PostToolUseFailure", "UserPromptSubmit", "SessionStart", "SessionEnd", "Stop", "SubagentStop", "SubagentStart", "InstructionsLoaded", "Notification", "PermissionRequest", "ConfigChange", "WorktreeCreate", "WorktreeRemove", "PreCompact", "TeammateIdle", "TaskCompleted"],
+      "autoEnable": false
+    }
+  }
+}

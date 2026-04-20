@@ -1,0 +1,28 @@
+{
+  "$schema": "https://clooks.cc/clooks-pack.schema.json",
+  "version": 1,
+  "name": "clooks-project-hooks",
+  "description": "Project-configured hooks: enforce project scripts, protected paths, and JS/TS package manager choice",
+  "author": "codestripes-dev",
+  "license": "MIT",
+  "repository": "https://github.com/codestripes-dev/clooks-marketplace",
+  "hooks": {
+    "js-package-manager-guard": {
+      "path": "hooks/js-package-manager-guard.ts",
+      "description": "Blocks wrong JS/TS package managers, runners, and runtimes. Configure allowed tools in clooks.yml.",
+      "events": ["PreToolUse", "SessionStart"]
+    },
+    "no-edit-protected": {
+      "path": "hooks/no-edit-protected.ts",
+      "description": "Blocks Write/Edit/MultiEdit on protected paths (lock files, vendor dirs, minified assets, and custom rules)",
+      "events": ["PreToolUse"],
+      "tags": ["guard", "safety", "files"]
+    },
+    "prefer-project-scripts": {
+      "path": "hooks/prefer-project-scripts.ts",
+      "description": "Blocks bare CLI tools when project scripts exist. Configure mappings in clooks.yml.",
+      "events": ["PreToolUse", "SessionStart"],
+      "autoEnable": false
+    }
+  }
+}

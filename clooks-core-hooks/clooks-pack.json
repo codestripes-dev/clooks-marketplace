@@ -1,0 +1,43 @@
+{
+  "$schema": "https://clooks.cc/clooks-pack.schema.json",
+  "version": 1,
+  "name": "clooks-core-hooks",
+  "description": "Curated zero-config production hooks: command safety, git protection, tool hygiene, and notifications",
+  "author": "codestripes-dev",
+  "license": "MIT",
+  "repository": "https://github.com/codestripes-dev/clooks-marketplace",
+  "hooks": {
+    "no-compound-commands": {
+      "path": "hooks/no-compound-commands.ts",
+      "description": "Blocks compound bash commands (&&, ||, ;) unless prefixed with ALLOW_COMPOUND=true",
+      "events": ["PreToolUse"]
+    },
+    "no-bare-mv": {
+      "path": "hooks/no-bare-mv.ts",
+      "description": "Rewrites bare mv to git mv when possible, preserving git history",
+      "events": ["PreToolUse"]
+    },
+    "no-destructive-git": {
+      "path": "hooks/no-destructive-git.ts",
+      "description": "Blocks dangerous git operations (force push, reset --hard, checkout --, stash drop, and 9 more rules)",
+      "events": ["PreToolUse"],
+      "tags": ["guard", "safety", "git"]
+    },
+    "prefer-builtin-tools": {
+      "path": "hooks/prefer-builtin-tools.ts",
+      "description": "Blocks bash commands that have dedicated Claude Code tools (cat→Read, grep→Grep, find→Glob, etc.)",
+      "events": ["PreToolUse"]
+    },
+    "no-auto-confirm": {
+      "path": "hooks/no-auto-confirm.ts",
+      "description": "Blocks piping auto-responses (yes, echo, printf) into commands instead of using non-interactive flags",
+      "events": ["PreToolUse"]
+    },
+    "tmux-notifications": {
+      "path": "hooks/tmux-notifications.ts",
+      "description": "Visual tmux indicators: red for attention, flash for prompts, reset on activity",
+      "events": ["Notification", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SessionStart", "SessionEnd"],
+      "autoEnable": false
+    }
+  }
+}

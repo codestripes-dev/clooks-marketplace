@@ -1,0 +1,15 @@
+{
+  "description": "Clooks bootstrap hook — checks if the runtime binary is installed on session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/install-entrypoint.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
