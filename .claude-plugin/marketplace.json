@@ -29,7 +29,7 @@
     {
       "name": "clooks-core-hooks",
       "description": "Curated zero-config production hooks: command safety, git protection, tool hygiene, and tmux notifications",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "./clooks-core-hooks",
       "author": {
         "name": "Clooks",

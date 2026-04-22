@@ -23,6 +23,12 @@
       "events": ["PreToolUse"],
       "tags": ["guard", "safety", "git"]
     },
+    "no-rm-rf": {
+      "path": "hooks/no-rm-rf.ts",
+      "description": "Blocks recursive rm against catastrophic paths (home, system dirs, project-root escape). Build-artifact cleanup allowed; within-project non-artifact deletion asks for user confirmation.",
+      "events": ["PreToolUse"],
+      "tags": ["guard", "safety", "filesystem"]
+    },
     "prefer-builtin-tools": {
       "path": "hooks/prefer-builtin-tools.ts",
       "description": "Blocks bash commands that have dedicated Claude Code tools (cat→Read, grep→Grep, find→Glob, etc.)",

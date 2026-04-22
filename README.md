@@ -32,7 +32,7 @@ claude plugin install clooks-core-hooks --scope user
 claude plugin install clooks-project-hooks --scope project
 ```
 
-Reload Claude Code. On first session start you'll be prompted to run `/clooks:setup`, which installs the `clooks` binary and initializes the project. The six hooks in `clooks-core-hooks` activate immediately; `clooks-project-hooks` requires a few lines in `clooks.yml` before it starts enforcing rules.
+Reload Claude Code. On first session start you'll be prompted to run `/clooks:setup`, which installs the `clooks` binary and initializes the project. The seven hooks in `clooks-core-hooks` activate immediately; `clooks-project-hooks` requires a few lines in `clooks.yml` before it starts enforcing rules.
 
 Prefer to install clooks without plugins? See the [clooks README](https://github.com/codestripes-dev/clooks#other-install-methods) for prebuilt binaries and source builds.
 
@@ -57,6 +57,7 @@ Curated zero-config production hooks — command safety, git protection, tool hy
 | Hook | What it does |
 |------|--------------|
 | **no-compound-commands** | Blocks `&&`, `\|\|`, `;` in Bash commands. Escape via `ALLOW_COMPOUND=true`. |
+| **no-rm-rf** | Blocks recursive rm against home, system dirs, and project-root escapes. Asks for within-project non-artifact deletes. Build artifacts (`node_modules`, `dist`, …) allowed. Escape via `ALLOW_DESTRUCTIVE_RM=true`. |
 | **no-destructive-git** | Blocks dangerous git ops: force push, `reset --hard`, `clean -f`, stash drop, broad `git add`, and 8 more. |
 | **no-auto-confirm** | Blocks piped auto-responses (`yes \|`, `echo y \|`, `printf 'y\n' \|`). Encourages designed non-interactive flags. |
 | **prefer-builtin-tools** | Blocks bash commands that duplicate Claude Code tools (`cat`→Read, `grep`→Grep, `find`→Glob, `sed -i`→Edit, `echo >`→Write, and 4 more). |
