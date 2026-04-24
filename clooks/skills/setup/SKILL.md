@@ -74,7 +74,9 @@ Step 4: Confirm success. Tell the user:
 - The clooks binary is installed at ~/.local/bin/clooks
 - If project init ran: the project is initialized with .clooks/clooks.yml
 - If global init ran: user-wide hooks are set up at ~/.clooks/clooks.yml
-- They can install hook packs (e.g., /plugin install clooks-example-hooks@clooks-marketplace)
+- They can install hook packs:
+  - `/plugin install clooks-core-hooks@clooks-marketplace` — user-wide / project-wide useful hooks for any situation
+  - `/plugin install clooks-project-hooks@clooks-marketplace` — project-specific hooks
 - They can write custom hooks in .clooks/hooks/ (project) or ~/.clooks/hooks/ (user-wide)
 
 ## Update flow
