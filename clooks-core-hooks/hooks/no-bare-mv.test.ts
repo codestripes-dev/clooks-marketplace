@@ -132,26 +132,6 @@ describe('no-bare-mv hook (integration)', () => {
     expect((result as any).injectContext).toBeDefined()
   })
 
-  it('preserves other toolInput fields (description, timeout) when rewriting', async () => {
-    const result = await hook.PreToolUse!(
-      makeCtx({
-        cwd: testDir,
-        toolInput: {
-          command: 'mv tracked.ts renamed.ts',
-          description: 'rename the file',
-          timeout: 5000,
-        },
-      }),
-      {},
-    )
-    expect(result.result).toBe('allow')
-    expect((result as any).updatedInput).toEqual({
-      command: 'git mv tracked.ts renamed.ts',
-      description: 'rename the file',
-      timeout: 5000,
-    })
-  })
-
   it('allows bare mv of untracked files without rewrite', async () => {
     const result = await hook.PreToolUse!(
       makeCtx({ cwd: testDir, toolInput: { command: 'mv untracked.ts renamed.ts' } }),

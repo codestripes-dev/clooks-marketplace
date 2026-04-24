@@ -66,7 +66,7 @@ export const hook: ClooksHook = {
 
     return {
       result: 'allow',
-      updatedInput: { ...ctx.toolInput, command: rewritten },
+      updatedInput: { command: rewritten },
       injectContext: `[no-bare-mv] Rewrote \`mv\` → \`git mv\` to preserve git history.`,
       debugMessage: `no-bare-mv: rewrote "${command}" → "${rewritten}"`,
     }
