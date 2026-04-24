@@ -270,8 +270,12 @@ do_install() {
   local actual
   actual="$(sha256_of "$tmpbin")"
 
-  # Case-insensitive compare.
-  if [[ "${expected,,}" != "${actual,,}" ]]; then
+  # Case-insensitive compare. `tr` is portable; `${var,,}` would require
+  # Bash 4+, which macOS's stock /bin/bash (3.2) does not provide.
+  local expected_lc actual_lc
+  expected_lc="$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')"
+  actual_lc="$(printf '%s' "$actual" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$expected_lc" != "$actual_lc" ]]; then
     err "checksum mismatch for $asset"
     err "  expected: $expected"
     err "  actual:   $actual"
