@@ -50,7 +50,7 @@ export const hook: ClooksHook = {
 
   beforeHook(event) {
     if (process.env.CLOOKS_DEBUG !== "true") {
-      event.respond({ result: "skip" })
+      return event.skip()
     }
   },
 

@@ -2,19 +2,37 @@ import { describe, expect, test } from "bun:test"
 import { hook } from "./debug-payload"
 
 describe("debug-payload", () => {
-  test("beforeHook skips when CLOOKS_DEBUG is not set", () => {
+  test("beforeHook returns skip when CLOOKS_DEBUG is not set", () => {
     const original = process.env.CLOOKS_DEBUG
     delete process.env.CLOOKS_DEBUG
-    let skipped = false
     const event = {
       type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {} },
       meta: {},
-      respond() { skipped = true },
+      block: (opts: any) => ({ result: "block", ...opts }),
+      skip: (opts: any = {}) => ({ result: "skip", ...opts }),
+      passthrough: (opts: any = {}) => ({ result: "passthrough", ...opts }),
     }
-    hook.beforeHook!(event as any, {})
-    expect(skipped).toBe(true)
+    const result = hook.beforeHook!(event as any, {})
+    expect((result as any).result).toBe("skip")
     if (original !== undefined) process.env.CLOOKS_DEBUG = original
+  })
+
+  test("beforeHook returns void when CLOOKS_DEBUG=true", () => {
+    const original = process.env.CLOOKS_DEBUG
+    process.env.CLOOKS_DEBUG = "true"
+    const event = {
+      type: "PreToolUse",
+      input: { toolName: "Bash", toolInput: {} },
+      meta: {},
+      block: (opts: any) => ({ result: "block", ...opts }),
+      skip: (opts: any = {}) => ({ result: "skip", ...opts }),
+      passthrough: (opts: any = {}) => ({ result: "passthrough", ...opts }),
+    }
+    const result = hook.beforeHook!(event as any, {})
+    expect(result).toBeUndefined()
+    if (original === undefined) delete process.env.CLOOKS_DEBUG
+    else process.env.CLOOKS_DEBUG = original
   })
 
   test("PreToolUse handler returns skip with injectContext", () => {

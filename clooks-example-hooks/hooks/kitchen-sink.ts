@@ -38,15 +38,17 @@ export const hook: ClooksHook = {
   },
 
   beforeHook(event) {
-    // Lifecycle: runs before the matched event handler.
-    // Call event.respond() with block or skip to short-circuit.
-    // Available: event.type, event.input (full event context), event.meta (HookEventMeta)
+    // Runs before the matched event handler. Return event.block({ reason }),
+    // event.skip(), or event.passthrough() to communicate a decision; void
+    // is a no-op shorthand for passthrough.
+    // Available: event.type, event.input (full event context), event.meta.
   },
 
   afterHook(event) {
-    // Lifecycle: runs after the handler completes.
-    // Available: event.type, event.input, event.handlerResult, event.meta
-    // Call event.respond() to override the handler's result.
+    // Observer-only: runs after the handler completes. Read
+    // event.handlerResult (typed once narrowed on event.type) and emit side
+    // effects. The result cannot be mutated.
+    // Available: event.type, event.input, event.handlerResult, event.meta.
   },
 
   // --- Guard events (can allow/block/skip) ---

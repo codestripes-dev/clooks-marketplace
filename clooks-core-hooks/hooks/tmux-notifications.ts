@@ -69,13 +69,11 @@ export const hook: ClooksHook = {
 
   beforeHook(event) {
     if (!process.env.TMUX) {
-      event.respond({ result: "skip" })
-      return
+      return event.skip()
     }
     const id = getWindowId()
     if (!id) {
-      event.respond({ result: "skip" })
-      return
+      return event.skip()
     }
     w = id
   },

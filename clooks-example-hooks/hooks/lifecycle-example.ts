@@ -33,15 +33,10 @@ export const hook: ClooksHook<Config> = {
       config.protectedBranches.includes(event.meta.gitBranch ?? "") &&
       event.input.toolName === "Bash"
     ) {
-      event.respond({
-        result: "block",
+      return event.block({
         reason: "Bash commands are blocked on the production branch",
       })
     }
-
-    // Skip pattern: make the hook invisible (handler + afterHook don't run).
-    // Useful for conditional hook activation:
-    //   if (someCondition) { event.respond({ result: "skip" }); return }
   },
 
   PreToolUse(ctx) {

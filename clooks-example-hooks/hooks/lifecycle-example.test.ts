@@ -1,7 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import { hook } from "./lifecycle-example"
 import type { BeforeHookEvent, AfterHookEvent, HookEventMeta } from "./types"
-import type { BlockResult } from "./types"
 
 function makeMeta(overrides?: Partial<HookEventMeta>): HookEventMeta {
   return {
@@ -17,92 +16,91 @@ function makeMeta(overrides?: Partial<HookEventMeta>): HookEventMeta {
   }
 }
 
-describe("lifecycle-example", () => {
-  test("beforeHook blocks Bash on production branch", () => {
-    let blocked: BlockResult | undefined
+function makeBeforeEvent(overrides: { type: any; input: any; meta: HookEventMeta }): BeforeHookEvent {
+  return {
+    ...overrides,
+    block: (opts: any) => ({ result: "block", ...opts }),
+    skip: (opts?: any) => ({ result: "skip", ...(opts ?? {}) }),
+    passthrough: (opts?: any) => ({ result: "passthrough", ...(opts ?? {}) }),
+  } as unknown as BeforeHookEvent
+}
 
-    const event = {
-      type: "PreToolUse" as const,
+function makeAfterEvent(overrides: { type: any; input: any; meta: HookEventMeta; handlerResult: any }): AfterHookEvent {
+  return {
+    ...overrides,
+    passthrough: (opts?: any) => ({ result: "passthrough", ...(opts ?? {}) }),
+  } as unknown as AfterHookEvent
+}
+
+describe("lifecycle-example", () => {
+  test("beforeHook blocks Bash on production branch", async () => {
+    const event = makeBeforeEvent({
+      type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {}, event: "PreToolUse" },
       meta: makeMeta({ gitBranch: "production" }),
-      respond(result: BlockResult) { blocked = result },
-    } as BeforeHookEvent
+    })
 
-    hook.beforeHook!(event, hook.meta.config!)
-    expect(blocked).toBeDefined()
-    expect(blocked!.result).toBe("block")
-    expect(blocked!.reason).toContain("production")
+    const result = await hook.beforeHook!(event, hook.meta.config!)
+    expect(result).toBeDefined()
+    expect((result as any).result).toBe("block")
+    expect((result as any).reason).toContain("production")
   })
 
-  test("beforeHook allows Bash on non-production branches", () => {
-    let blocked: BlockResult | undefined
-
-    const event = {
-      type: "PreToolUse" as const,
+  test("beforeHook returns void on non-production branches", async () => {
+    const event = makeBeforeEvent({
+      type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {}, event: "PreToolUse" },
       meta: makeMeta({ gitBranch: "main" }),
-      respond(result: BlockResult) { blocked = result },
-    } as BeforeHookEvent
+    })
 
-    hook.beforeHook!(event, hook.meta.config!)
-    expect(blocked).toBeUndefined()
+    const result = await hook.beforeHook!(event, hook.meta.config!)
+    expect(result).toBeUndefined()
   })
 
-  test("beforeHook allows non-Bash tools on production branch", () => {
-    let blocked: BlockResult | undefined
-
-    const event = {
-      type: "PreToolUse" as const,
+  test("beforeHook returns void for non-Bash tools on production branch", async () => {
+    const event = makeBeforeEvent({
+      type: "PreToolUse",
       input: { toolName: "Read", toolInput: {}, event: "PreToolUse" },
       meta: makeMeta({ gitBranch: "production" }),
-      respond(result: BlockResult) { blocked = result },
-    } as BeforeHookEvent
+    })
 
-    hook.beforeHook!(event, hook.meta.config!)
-    expect(blocked).toBeUndefined()
+    const result = await hook.beforeHook!(event, hook.meta.config!)
+    expect(result).toBeUndefined()
   })
 
-  test("beforeHook blocks Bash on custom protected branch", () => {
-    let blocked: BlockResult | undefined
-
-    const event = {
-      type: "PreToolUse" as const,
+  test("beforeHook blocks Bash on custom protected branch", async () => {
+    const event = makeBeforeEvent({
+      type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {}, event: "PreToolUse" },
       meta: makeMeta({ gitBranch: "staging" }),
-      respond(result: BlockResult) { blocked = result },
-    } as BeforeHookEvent
+    })
 
-    hook.beforeHook!(event, { protectedBranches: ["staging"] })
-    expect(blocked).toBeDefined()
-    expect(blocked!.result).toBe("block")
+    const result = await hook.beforeHook!(event, { protectedBranches: ["staging"] })
+    expect(result).toBeDefined()
+    expect((result as any).result).toBe("block")
   })
 
-  test("afterHook computes positive duration", () => {
-    // Simulate beforeHook setting start time
-    const beforeEvent = {
-      type: "PreToolUse" as const,
+  test("afterHook computes positive duration", async () => {
+    const beforeEvent = makeBeforeEvent({
+      type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {}, event: "PreToolUse" },
       meta: makeMeta(),
-      respond() {},
-    } as BeforeHookEvent
+    })
 
-    hook.beforeHook!(beforeEvent, hook.meta.config!)
+    await hook.beforeHook!(beforeEvent, hook.meta.config!)
 
-    // Small delay to ensure measurable duration
-    const afterEvent = {
-      type: "PreToolUse" as const,
+    const afterEvent = makeAfterEvent({
+      type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {}, event: "PreToolUse" },
       handlerResult: { result: "allow" },
       meta: makeMeta(),
-      respond() {},
-    } as AfterHookEvent
+    })
 
-    // Capture console.log output
     const logs: string[] = []
     const origLog = console.log
     console.log = (...args: unknown[]) => { logs.push(args.join(" ")) }
     try {
-      hook.afterHook!(afterEvent, hook.meta.config!)
+      await hook.afterHook!(afterEvent, hook.meta.config!)
     } finally {
       console.log = origLog
     }
