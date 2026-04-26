@@ -13,6 +13,11 @@ function makeCtx(overrides: Partial<PreToolUseContext> = {}): PreToolUseContext 
     cwd: '/home/user/project',
     permissionMode: 'default',
     transcriptPath: '/tmp/transcript.jsonl',
+    allow: (opts = {}) => ({ result: 'allow', ...opts }),
+    block: (opts) => ({ result: 'block', ...opts }),
+    skip: (opts = {}) => ({ result: 'skip', ...opts }),
+    ask: (opts) => ({ result: 'ask', ...opts }),
+    defer: (opts = {}) => ({ result: 'defer', ...opts }),
     ...overrides,
   }
 }

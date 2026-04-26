@@ -583,23 +583,24 @@ function severityRank(entry: AggregatedEntry): number {
 }
 
 /** Mutates `entries`: sorts in place by severity rank. */
-function aggregate(entries: AggregatedEntry[]): PreToolUseResult {
-  if (entries.length === 0) return { result: 'skip' }
+function aggregate(
+  entries: AggregatedEntry[],
+  ctx: Parameters<NonNullable<ClooksHook<Config>['PreToolUse']>>[0],
+): PreToolUseResult {
+  if (entries.length === 0) return ctx.skip()
   entries.sort((a, b) => severityRank(a) - severityRank(b))
   const head = entries[0]
   const reason = entries.map(e => e.reason).join('\n\n')
   if (head.rule.verdict === 'ask') {
-    return {
-      result: 'ask',
+    return ctx.ask({
       reason,
       debugMessage: `no-rm-rf: asking on ${head.rule.id}`,
-    }
+    })
   }
-  return {
-    result: 'block',
+  return ctx.block({
     reason,
     debugMessage: `no-rm-rf: blocked on ${head.rule.id}`,
-  }
+  })
 }
 
 export const hook: ClooksHook<Config> = {
@@ -624,10 +625,10 @@ export const hook: ClooksHook<Config> = {
   },
 
   PreToolUse(ctx, config) {
-    if (ctx.toolName !== 'Bash') return { result: 'skip' }
+    if (ctx.toolName !== 'Bash') return ctx.skip()
 
     const command = ctx.toolInput.command
-    if (!command) return { result: 'skip' }
+    if (!command) return ctx.skip()
 
     const sanitized = sanitize(command)
     const segments = getSegments(sanitized)
@@ -643,7 +644,7 @@ export const hook: ClooksHook<Config> = {
     //   only peels `VAR=a`, leaving rest = `b rm -rf ~`. Scanning the full
     //   segment still locates the rm invocation.
     const hasAnyRecursiveRm = segments.some(seg => hasRecursiveFlag(seg))
-    if (!hasAnyRecursiveRm) return { result: 'skip' }
+    if (!hasAnyRecursiveRm) return ctx.skip()
 
     // Hoist project-root detection out of the segment loop: cwd is the same
     // for all segments, and git rev-parse has a 1s timeout — one call per
@@ -737,6 +738,6 @@ export const hook: ClooksHook<Config> = {
       }
     }
 
-    return aggregate(aggregated)
+    return aggregate(aggregated, ctx)
   },
 }

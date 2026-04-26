@@ -146,17 +146,17 @@ export const hook: ClooksHook<Config> = {
   PreToolUse(ctx, config) {
     // 1. Guard: skip non-target tools
     const targetTools = ['Write', 'Edit', 'MultiEdit']
-    if (!targetTools.includes(ctx.toolName)) return { result: 'skip' }
+    if (!targetTools.includes(ctx.toolName)) return ctx.skip()
 
     // 2. Extract filePath
     const filePath = typeof ctx.toolInput.filePath === 'string'
       ? ctx.toolInput.filePath
       : ''
-    if (!filePath) return { result: 'skip' }
+    if (!filePath) return ctx.skip()
 
     // 3. Normalize path (strip cwd, get project-relative)
     const relativePath = normalizePath(filePath, ctx.cwd)
-    if (relativePath === null) return { result: 'skip' }
+    if (relativePath === null) return ctx.skip()
     // (null = file outside project — no opinion)
 
     // 4. Check built-in rules
@@ -165,11 +165,10 @@ export const hook: ClooksHook<Config> = {
       for (const pattern of group.patterns) {
         try {
           if (globToRegex(pattern).test(relativePath)) {
-            return {
-              result: 'block',
+            return ctx.block({
               reason: blockMessage(relativePath, group.id, group.message),
               debugMessage: `no-edit-protected: blocked by built-in rule '${group.id}' (pattern: ${pattern})`,
-            }
+            })
           }
         } catch {
           // Invalid glob — skip this pattern
@@ -192,17 +191,16 @@ export const hook: ClooksHook<Config> = {
           if (excepted) continue  // path is excluded from this rule
         }
 
-        return {
-          result: 'block',
+        return ctx.block({
           reason: blockMessage(relativePath, rule.pattern, rule.message),
           debugMessage: `no-edit-protected: blocked by custom rule '${rule.pattern}'`,
-        }
+        })
       } catch {
         // Invalid glob — skip this rule
       }
     }
 
     // 6. No match — skip (not allow)
-    return { result: 'skip' }
+    return ctx.skip()
   },
 }

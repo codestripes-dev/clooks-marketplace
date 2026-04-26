@@ -84,7 +84,12 @@ function makeCtx(toolName: string, command: string): PreToolUseContext {
     cwd: '/tmp',
     permissionMode: 'default',
     transcriptPath: '/tmp/transcript.jsonl',
-  }
+    allow: (opts = {}) => ({ result: 'allow', ...opts }),
+    block: (opts) => ({ result: 'block', ...opts }),
+    skip: (opts = {}) => ({ result: 'skip', ...opts }),
+    ask: (opts) => ({ result: 'ask', ...opts }),
+    defer: (opts = {}) => ({ result: 'defer', ...opts }),
+  } as unknown as PreToolUseContext
 }
 
 describe('hook.PreToolUse', () => {

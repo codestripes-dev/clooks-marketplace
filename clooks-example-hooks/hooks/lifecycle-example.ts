@@ -44,8 +44,8 @@ export const hook: ClooksHook<Config> = {
     //   if (someCondition) { event.respond({ result: "skip" }); return }
   },
 
-  PreToolUse(_ctx) {
-    return { result: "allow" }
+  PreToolUse(ctx) {
+    return ctx.allow()
   },
 
   afterHook(event) {

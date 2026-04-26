@@ -13,21 +13,20 @@ import type { ClooksHook } from "./types"
 function formatContext(ctx: Record<string, unknown>): string {
   const { signal: _, ...rest } = ctx
   return Object.entries(rest)
+    .filter(([, v]) => typeof v !== "function")
     .map(([k, v]) => `  ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
     .join("\n")
 }
 
-function withInject(event: string, ctx: Record<string, unknown>) {
+function injectOpts(event: string, ctx: Record<string, unknown>): { injectContext: string; debugMessage: string } {
   return {
-    result: "skip" as const,
     injectContext: `[kitchen-sink] ${event} context:\n${formatContext(ctx)}`,
     debugMessage: `kitchen-sink: ${event}`,
   }
 }
 
-function withDebug(event: string, ctx: Record<string, unknown>) {
+function debugOpts(event: string, ctx: Record<string, unknown>): { debugMessage: string } {
   return {
-    result: "skip" as const,
     debugMessage: `[kitchen-sink] ${event} context:\n${formatContext(ctx)}`,
   }
 }
@@ -51,39 +50,39 @@ export const hook: ClooksHook = {
   },
 
   // --- Guard events (can allow/block/skip) ---
-  PreToolUse: (ctx) => withInject("PreToolUse", ctx),
-  UserPromptSubmit: (ctx) => withInject("UserPromptSubmit", ctx),
-  PermissionRequest: (ctx) => withDebug("PermissionRequest", ctx),
-  Stop: (ctx) => withDebug("Stop", ctx),
-  SubagentStop: (ctx) => withDebug("SubagentStop", ctx),
-  ConfigChange: (ctx) => withDebug("ConfigChange", ctx),
+  PreToolUse: (ctx) => ctx.skip(injectOpts("PreToolUse", ctx as any)),
+  UserPromptSubmit: (ctx) => ctx.skip(injectOpts("UserPromptSubmit", ctx as any)),
+  PermissionRequest: (ctx) => ctx.skip(debugOpts("PermissionRequest", ctx as any)),
+  Stop: (ctx) => ctx.skip(debugOpts("Stop", ctx as any)),
+  SubagentStop: (ctx) => ctx.skip(debugOpts("SubagentStop", ctx as any)),
+  ConfigChange: (ctx) => ctx.skip(debugOpts("ConfigChange", ctx as any)),
 
   // --- Observe events (skip only, some support injectContext) ---
-  SessionStart: (ctx) => withInject("SessionStart", ctx),
-  PostToolUse: (ctx) => withInject("PostToolUse", ctx),
-  PostToolUseFailure: (ctx) => withInject("PostToolUseFailure", ctx),
-  Notification: (ctx) => withInject("Notification", ctx),
-  SubagentStart: (ctx) => withInject("SubagentStart", ctx),
-  SessionEnd: (ctx) => withDebug("SessionEnd", ctx),
-  InstructionsLoaded: (ctx) => withDebug("InstructionsLoaded", ctx),
-  WorktreeRemove: (ctx) => withDebug("WorktreeRemove", ctx),
-  PreCompact: (ctx) => withDebug("PreCompact", ctx),
+  SessionStart: (ctx) => ctx.skip(injectOpts("SessionStart", ctx as any)),
+  PostToolUse: (ctx) => ctx.skip(injectOpts("PostToolUse", ctx as any)),
+  PostToolUseFailure: (ctx) => ctx.skip(injectOpts("PostToolUseFailure", ctx as any)),
+  Notification: (ctx) => ctx.skip(injectOpts("Notification", ctx as any)),
+  SubagentStart: (ctx) => ctx.skip(injectOpts("SubagentStart", ctx as any)),
+  SessionEnd: (ctx) => ctx.skip(debugOpts("SessionEnd", ctx as any)),
+  InstructionsLoaded: (ctx) => ctx.skip(debugOpts("InstructionsLoaded", ctx as any)),
+  WorktreeRemove: (ctx) => ctx.skip(debugOpts("WorktreeRemove", ctx as any)),
+  PreCompact: (ctx) => ctx.skip(debugOpts("PreCompact", ctx as any)),
 
   // WorktreeCreate is special: its result type is SuccessResult | FailureResult
   // (no SkipResult). We return a SuccessResult with a placeholder path.
-  WorktreeCreate: (ctx) => ({
-    result: "success" as const,
-    path: ctx.cwd,
-    debugMessage: `[kitchen-sink] WorktreeCreate context:\n${formatContext(ctx as any)}`,
-  }),
+  WorktreeCreate: (ctx) =>
+    ctx.success({
+      path: ctx.cwd,
+      debugMessage: `[kitchen-sink] WorktreeCreate context:\n${formatContext(ctx as any)}`,
+    }),
 
   // --- Continuation events (continue/stop/skip) ---
-  TeammateIdle: (ctx) => ({
-    result: "skip" as const,
-    debugMessage: `[kitchen-sink] TeammateIdle context:\n${formatContext(ctx as any)}`,
-  }),
-  TaskCompleted: (ctx) => ({
-    result: "skip" as const,
-    debugMessage: `[kitchen-sink] TaskCompleted context:\n${formatContext(ctx as any)}`,
-  }),
+  TeammateIdle: (ctx) =>
+    ctx.skip({
+      debugMessage: `[kitchen-sink] TeammateIdle context:\n${formatContext(ctx as any)}`,
+    }),
+  TaskCompleted: (ctx) =>
+    ctx.skip({
+      debugMessage: `[kitchen-sink] TaskCompleted context:\n${formatContext(ctx as any)}`,
+    }),
 }

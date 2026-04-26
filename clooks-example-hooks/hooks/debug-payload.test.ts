@@ -23,6 +23,7 @@ describe("debug-payload", () => {
       toolName: "Bash", toolInput: {}, toolUseId: "t1",
       permissionMode: "default", transcriptPath: "/tmp/t.jsonl",
       parallel: false, signal: new AbortController().signal,
+      skip: (opts: any = {}) => ({ result: "skip", ...opts }),
     }
     const result = hook.PreToolUse!(ctx as any, {})
     expect(result.result).toBe("skip")
@@ -35,6 +36,7 @@ describe("debug-payload", () => {
       source: "startup", permissionMode: "default",
       transcriptPath: "/tmp/t.jsonl",
       parallel: false, signal: new AbortController().signal,
+      skip: (opts: any = {}) => ({ result: "skip", ...opts }),
     }
     const result = hook.SessionStart!(ctx as any, {})
     expect(result.result).toBe("skip")

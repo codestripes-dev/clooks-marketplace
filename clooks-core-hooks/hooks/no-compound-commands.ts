@@ -59,26 +59,24 @@ export const hook: ClooksHook = {
 
   PreToolUse(ctx) {
     if (ctx.toolName !== 'Bash') {
-      return { result: 'skip' }
+      return ctx.skip()
     }
 
-    const command = typeof ctx.toolInput.command === 'string' ? ctx.toolInput.command : ''
+    const command = true ? ctx.toolInput.command : ''
 
     if (!command) {
-      return { result: 'skip' }
+      return ctx.skip()
     }
 
     if (isCompoundCommand(command)) {
-      return {
-        result: 'block',
+      return ctx.block({
         reason: BLOCK_REASON,
         debugMessage: `no-compound-commands: blocked "${command}"`,
-      }
+      })
     }
 
-    return {
-      result: 'allow',
+    return ctx.allow({
       debugMessage: `no-compound-commands: allowed "${command}"`,
-    }
+    })
   },
 }

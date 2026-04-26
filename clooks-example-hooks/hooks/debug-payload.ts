@@ -25,20 +25,18 @@ function logToFile(ctx: BaseContext): void {
 }
 
 /** For events that support injectContext. */
-function injectPayload(ctx: BaseContext) {
+function injectOpts(ctx: BaseContext): { injectContext: string; debugMessage: string } {
   logToFile(ctx)
   return {
-    result: "skip" as const,
     injectContext: dump(ctx),
     debugMessage: `debug-payload: injected ${ctx.event} payload`,
   }
 }
 
 /** For events that only support debugMessage. */
-function debugPayload(ctx: BaseContext) {
+function debugOpts(ctx: BaseContext): { debugMessage: string } {
   logToFile(ctx)
   return {
-    result: "skip" as const,
     debugMessage: `debug-payload [${ctx.event}]: ${dump(ctx)}`,
   }
 }
@@ -57,30 +55,30 @@ export const hook: ClooksHook = {
   },
 
   // --- Guard events (injectContext supported on PreToolUse, UserPromptSubmit) ---
-  PreToolUse: (ctx) => injectPayload(ctx),
-  UserPromptSubmit: (ctx) => injectPayload(ctx),
-  PermissionRequest: (ctx) => debugPayload(ctx),
-  Stop: (ctx) => debugPayload(ctx),
-  SubagentStop: (ctx) => debugPayload(ctx),
-  ConfigChange: (ctx) => debugPayload(ctx),
+  PreToolUse: (ctx) => ctx.skip(injectOpts(ctx)),
+  UserPromptSubmit: (ctx) => ctx.skip(injectOpts(ctx)),
+  PermissionRequest: (ctx) => ctx.skip(debugOpts(ctx)),
+  Stop: (ctx) => ctx.skip(debugOpts(ctx)),
+  SubagentStop: (ctx) => ctx.skip(debugOpts(ctx)),
+  ConfigChange: (ctx) => ctx.skip(debugOpts(ctx)),
 
   // --- Observe events (injectContext supported on most) ---
-  SessionStart: (ctx) => injectPayload(ctx),
-  PostToolUse: (ctx) => injectPayload(ctx),
-  PostToolUseFailure: (ctx) => injectPayload(ctx),
-  Notification: (ctx) => injectPayload(ctx),
-  SubagentStart: (ctx) => injectPayload(ctx),
+  SessionStart: (ctx) => ctx.skip(injectOpts(ctx)),
+  PostToolUse: (ctx) => ctx.skip(injectOpts(ctx)),
+  PostToolUseFailure: (ctx) => ctx.skip(injectOpts(ctx)),
+  Notification: (ctx) => ctx.skip(injectOpts(ctx)),
+  SubagentStart: (ctx) => ctx.skip(injectOpts(ctx)),
 
   // Observe events without injectContext
-  SessionEnd: (ctx) => debugPayload(ctx),
-  InstructionsLoaded: (ctx) => debugPayload(ctx),
-  WorktreeRemove: (ctx) => debugPayload(ctx),
-  PreCompact: (ctx) => debugPayload(ctx),
+  SessionEnd: (ctx) => ctx.skip(debugOpts(ctx)),
+  InstructionsLoaded: (ctx) => ctx.skip(debugOpts(ctx)),
+  WorktreeRemove: (ctx) => ctx.skip(debugOpts(ctx)),
+  PreCompact: (ctx) => ctx.skip(debugOpts(ctx)),
 
   // --- Continuation events (debugMessage only) ---
   // WorktreeCreate is intentionally excluded: its result type is
   // SuccessResult | FailureResult (no SkipResult variant), which is
   // incompatible with this hook's skip-based pattern.
-  TeammateIdle: (ctx) => debugPayload(ctx),
-  TaskCompleted: (ctx) => debugPayload(ctx),
+  TeammateIdle: (ctx) => ctx.skip(debugOpts(ctx)),
+  TaskCompleted: (ctx) => ctx.skip(debugOpts(ctx)),
 }

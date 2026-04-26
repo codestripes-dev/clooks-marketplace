@@ -8,7 +8,6 @@
 import { execSync } from "child_process"
 import type { ClooksHook } from "./types"
 
-const SKIP = { result: "skip" } as const
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function tmux(cmd: string): void {
@@ -70,12 +69,12 @@ export const hook: ClooksHook = {
 
   beforeHook(event) {
     if (!process.env.TMUX) {
-      event.respond(SKIP)
+      event.respond({ result: "skip" })
       return
     }
     const id = getWindowId()
     if (!id) {
-      event.respond(SKIP)
+      event.respond({ result: "skip" })
       return
     }
     w = id
@@ -93,33 +92,33 @@ export const hook: ClooksHook = {
       setAttentionStyle(w)
       await flashPane()
     }
-    return SKIP
+    return ctx.skip()
   },
 
-  UserPromptSubmit() {
+  UserPromptSubmit(ctx) {
     resetWindow(w)
-    return SKIP
+    return ctx.skip()
   },
 
-  PostToolUse() {
+  PostToolUse(ctx) {
     resetWindow(w)
-    return SKIP
+    return ctx.skip()
   },
 
-  PostToolUseFailure() {
+  PostToolUseFailure(ctx) {
     resetWindow(w)
-    return SKIP
+    return ctx.skip()
   },
 
-  SessionStart() {
+  SessionStart(ctx) {
     resetWindow(w)
-    return SKIP
+    return ctx.skip()
   },
 
-  SessionEnd() {
+  SessionEnd(ctx) {
     tmux(`set-window-option -t ${w} window-status-style default`)
     tmux(`set-window-option -t ${w} -u window-status-current-style`)
     tmux(`set-window-option -t ${w} automatic-rename on`)
-    return SKIP
+    return ctx.skip()
   },
 }

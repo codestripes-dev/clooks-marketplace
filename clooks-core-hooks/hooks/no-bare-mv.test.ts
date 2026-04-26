@@ -17,8 +17,13 @@ function makeCtx(overrides: Partial<PreToolUseContext> = {}): PreToolUseContext 
     toolUseId: 'tu-test-1',
     parallel: false,
     signal: new AbortController().signal,
+    allow: (opts = {}) => ({ result: 'allow', ...opts }),
+    block: (opts) => ({ result: 'block', ...opts }),
+    skip: (opts = {}) => ({ result: 'skip', ...opts }),
+    ask: (opts) => ({ result: 'ask', ...opts }),
+    defer: (opts = {}) => ({ result: 'defer', ...opts }),
     ...overrides,
-  }
+  } as PreToolUseContext
 }
 
 describe('isBareMove', () => {

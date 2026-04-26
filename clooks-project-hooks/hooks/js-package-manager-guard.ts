@@ -188,8 +188,7 @@ export const hook: ClooksHook<Config> = {
     const allowed = Array.isArray(config.allowed) ? config.allowed : []
 
     if (allowed.length === 0) {
-      return {
-        result: 'skip',
+      return ctx.skip({
         injectContext: `CONFIGURATION REQUIRED: The js-package-manager-guard hook is enabled but has no package managers configured. In your very first response, regardless of what the user asked, inform them about this AND proactively offer to configure it for them.
 
 You have enough information to do the configuration yourself — do not just ask the user to do it. Offer, and if they agree, detect the right package manager and edit clooks.yml.
@@ -217,23 +216,23 @@ If the user wants to disable the hook instead, set enabled: false on the hook in
 
 Without configuration, this hook cannot protect against wrong package manager usage. Do not wait for the user to ask — mention this immediately. This notice will stop appearing once the allowed list is configured.`,
         debugMessage: 'js-package-manager-guard: unconfigured, injecting warning',
-      }
+      })
     }
 
-    return { result: 'skip' }
+    return ctx.skip()
   },
 
   PreToolUse(ctx, config) {
     // 1. Skip non-Bash tools
-    if (ctx.toolName !== 'Bash') return { result: 'skip' }
+    if (ctx.toolName !== 'Bash') return ctx.skip()
 
     // 2. Skip empty/non-string commands
     const command = typeof ctx.toolInput.command === 'string' ? ctx.toolInput.command : ''
-    if (!command) return { result: 'skip' }
+    if (!command) return ctx.skip()
 
     // 3. Skip if unconfigured (allowed is empty — warning already injected on SessionStart)
     const allowed = Array.isArray(config.allowed) ? config.allowed : []
-    if (allowed.length === 0) return { result: 'skip' }
+    if (allowed.length === 0) return ctx.skip()
 
     // 4. Expand the allowed set (PM → runner/runtime)
     const expandedAllowed = expandAllowed(allowed)
@@ -242,11 +241,10 @@ Without configuration, this hook cannot protect against wrong package manager us
     const blockedTool = detectBlockedTool(command, expandedAllowed)
     if (blockedTool) {
       const reason = generateBlockMessage(blockedTool, expandedAllowed, allowed)
-      return {
-        result: 'block',
+      return ctx.block({
         reason,
         debugMessage: `js-package-manager-guard: blocked '${blockedTool}'`,
-      }
+      })
     }
 
     // 6. Check additionalBlocked
@@ -254,15 +252,14 @@ Without configuration, this hook cannot protect against wrong package manager us
     if (additional.length > 0) {
       const match = isAdditionalBlocked(command, additional)
       if (match) {
-        return {
-          result: 'block',
+        return ctx.block({
           reason: `[js-package-manager-guard] ${match.message}`,
           debugMessage: `js-package-manager-guard: blocked '${match.tool}' (additionalBlocked)`,
-        }
+        })
       }
     }
 
     // 7. No match — skip (not allow)
-    return { result: 'skip' }
+    return ctx.skip()
   },
 }

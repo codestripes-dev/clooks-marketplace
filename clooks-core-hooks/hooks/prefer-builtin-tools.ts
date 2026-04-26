@@ -148,11 +148,11 @@ export const hook: ClooksHook<Config> = {
 
   PreToolUse(ctx, config) {
     // 1. Skip non-Bash tools
-    if (ctx.toolName !== 'Bash') return { result: 'skip' }
+    if (ctx.toolName !== 'Bash') return ctx.skip()
 
     // 2. Skip empty/non-string commands
     const command = typeof ctx.toolInput.command === 'string' ? ctx.toolInput.command : ''
-    if (!command) return { result: 'skip' }
+    if (!command) return ctx.skip()
 
     // 3. Sanitize: strip quoted strings and comments
     const sanitized = sanitize(command)
@@ -184,11 +184,10 @@ export const hook: ClooksHook<Config> = {
         if (rule.hasPipeException && info.hasPipe) continue
 
         // All checks passed — block
-        return {
-          result: 'block',
+        return ctx.block({
           reason: rule.reason,
           debugMessage: `prefer-builtin-tools: blocked by rule '${rule.id}'`,
-        }
+        })
       }
     }
 
@@ -197,11 +196,10 @@ export const hook: ClooksHook<Config> = {
       for (const custom of config.additionalRules) {
         try {
           if (new RegExp(custom.match).test(sanitized)) {
-            return {
-              result: 'block',
+            return ctx.block({
               reason: custom.message,
               debugMessage: `prefer-builtin-tools: blocked by additionalRule '${custom.match}'`,
-            }
+            })
           }
         } catch {
           // Invalid regex — skip silently
@@ -210,6 +208,6 @@ export const hook: ClooksHook<Config> = {
     }
 
     // 7. No match — skip (not allow)
-    return { result: 'skip' }
+    return ctx.skip()
   },
 }

@@ -45,30 +45,28 @@ export const hook: ClooksHook = {
 
   PreToolUse(ctx) {
     if (ctx.toolName !== 'Bash') {
-      return { result: 'skip' }
+      return ctx.skip()
     }
 
-    const command = typeof ctx.toolInput.command === 'string' ? ctx.toolInput.command : ''
+    const command = ctx.toolInput.command
 
     if (!command || !isBareMove(command)) {
-      return { result: 'skip' }
+      return ctx.skip()
     }
 
     const rewritten = rewriteToGitMv(command)
 
     if (!dryRunSucceeds(rewritten, ctx.cwd)) {
-      return {
-        result: 'allow',
+      return ctx.allow({
         debugMessage: `no-bare-mv: dry-run failed, allowing bare mv`,
         injectContext: `no-bare-mv: Unable to automatically use git mv for this operation - consider using git mv if possible`,
-      }
+      })
     }
 
-    return {
-      result: 'allow',
+    return ctx.allow({
       updatedInput: { command: rewritten },
       injectContext: `[no-bare-mv] Rewrote \`mv\` → \`git mv\` to preserve git history.`,
       debugMessage: `no-bare-mv: rewrote "${command}" → "${rewritten}"`,
-    }
+    })
   },
 }

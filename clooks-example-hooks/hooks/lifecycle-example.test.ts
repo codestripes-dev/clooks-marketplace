@@ -113,7 +113,16 @@ describe("lifecycle-example", () => {
   })
 
   test("handler returns allow", () => {
-    const result = hook.PreToolUse!({ toolName: "Bash", toolInput: {} } as any, hook.meta.config!)
+    const ctx = {
+      toolName: "Bash",
+      toolInput: {},
+      allow: (opts: object = {}) => ({ result: "allow", ...opts }),
+      ask: (opts: object = {}) => ({ result: "ask", ...opts }),
+      block: (opts: object = {}) => ({ result: "block", ...opts }),
+      defer: (opts: object = {}) => ({ result: "defer", ...opts }),
+      skip: (opts: object = {}) => ({ result: "skip", ...opts }),
+    }
+    const result = hook.PreToolUse!(ctx as any, hook.meta.config!)
     expect(result).toEqual({ result: "allow" })
   })
 })
