@@ -39,6 +39,12 @@
       "description": "Blocks piping auto-responses (yes, echo, printf) into commands instead of using non-interactive flags",
       "events": ["PreToolUse", "SessionStart"]
     },
+    "no-pasted-placeholder": {
+      "path": "hooks/no-pasted-placeholder.ts",
+      "description": "Blocks UserPromptSubmit when the prompt still contains a literal `[Pasted text #N +N lines]` placeholder",
+      "events": ["UserPromptSubmit"],
+      "tags": ["guard", "input"]
+    },
     "tmux-notifications": {
       "path": "hooks/tmux-notifications.ts",
       "description": "Visual tmux indicators: red for attention, flash for prompts, reset on activity",
