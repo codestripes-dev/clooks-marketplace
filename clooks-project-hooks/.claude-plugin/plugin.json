@@ -1,7 +1,7 @@
 {
   "name": "clooks-project-hooks",
   "description": "Project-configured clooks hooks: enforce project scripts, protected paths, and JS/TS package manager choice",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": { "name": "Clooks", "email": "hello@clooks.cc" },
   "repository": "https://github.com/codestripes-dev/clooks-marketplace",
   "license": "MIT",
