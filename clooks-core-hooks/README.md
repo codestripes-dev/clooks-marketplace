@@ -30,17 +30,31 @@ Rewrites bare `mv` to `git mv` when `git mv` would succeed, preserving git histo
 
 ---
 
-### tmux-notifications
+### no-destructive-git
 
-Visual tmux indicators for Claude Code session state. Sets red window status when idle, bold red with pane flash for permission/elicitation prompts, and resets on activity (new prompt, tool use, session start).
+Blocks dangerous git operations on the Bash tool: `git reset --hard`, `git clean -f`, `git push --force`, `git stash drop`, `git commit --amend`, broad `git add -A` / `.`, and several more — 13 rules in total spanning reset, checkout, restore, clean, stash, worktree, push, branch, and hook-skipping (`--no-verify`). The block reason is tagged with the rule ID that fired so it's clear which rule triggered.
 
-**When to enable:** When running Claude Code inside tmux and you want visual feedback about session state across multiple windows/panes.
+**When to enable:** Always. Each rule corresponds to a concrete way an agent can lose committed work, lose uncommitted work, or rewrite shared history.
 
-**Config options:** None.
+**Config options:**
 
-**Escape hatch:** The hook no-ops automatically when the `TMUX` environment variable is not set (i.e., outside tmux). The `beforeHook` calls `event.respond({ result: "skip" })` to bail out early.
+Every rule is enabled by default. Set the rule ID to `false` in `clooks.yml` to skip instead of block:
 
-**Note:** This hook has no test file. Testing requires a real tmux environment with `TMUX_PANE` set, which cannot be simulated in unit tests.
+- `reset-hard`, `reset-merge` — `git reset --hard|--merge`.
+- `checkout-discard` — `git checkout -- <path>` / `git checkout .`.
+- `restore-discard` — `git restore` without `--staged`.
+- `clean-force` — `git clean -f` / `--force` (allows `-n`, `-i`, `--dry-run`).
+- `stash-drop` — `git stash drop|clear`.
+- `worktree-force-remove` — `git worktree remove --force`.
+- `force-push` — `git push --force` / `+refspec` / `--mirror` (allows `--force-with-lease`, `--force-if-includes`).
+- `commit-amend` — `git commit --amend`.
+- `push-delete` — `git push --delete <ref>` / `git push <remote> :<ref>`.
+- `branch-force-delete` — `git branch -D` (use `-d` for safe delete).
+- `no-verify` — `--no-verify` on any git subcommand.
+- `broad-add` — `git add -A` / `git add --all` / `git add .`. **Unbypassable** — always use specific paths.
+- `additionalRules: { match: string; message: string }[]` — custom regex rules. Unbypassable.
+
+**Escape hatch:** Prefix the command with `ALLOW_DESTRUCTIVE_GIT=true` to bypass the 12 escape-eligible rules. `broad-add` and `additionalRules` are unbypassable.
 
 ---
 
@@ -99,6 +113,27 @@ Extend via `extraAllowlist` in `clooks.yml`. Non-allowlisted within-project path
 
 ---
 
+### prefer-builtin-tools
+
+Blocks bash commands that duplicate Claude Code's first-class tools: `cat`/`head`/`tail` → Read, `grep`/`rg`/`egrep`/`fgrep` → Grep, `find` → Glob, `sed -i` → Edit, `ls` → Glob, `echo`/`printf` with `>` → Write. Also refuses `sleep` outright. Stream uses (piped `grep`, `sed` without `-i`, `tail -f`) are explicitly allowed.
+
+**When to enable:** Always when working with Claude Code. Built-in tools provide structured output, permission caching, and integrate with the rest of the toolchain. The hook is a no-op for agents that don't have those tools.
+
+**Config options:**
+
+Every rule is enabled by default. Set the rule ID to `false` in `clooks.yml` to skip instead of block:
+
+- `cat`, `head`, `tail`, `grep`, `find`, `sed-inplace`, `ls`, `sleep`, `echo-redirect`.
+- `additionalRules: { match: string; message: string }[]` — custom regex rules. Unbypassable.
+
+**Escape hatch:** Prefix the command with `ALLOW_BUILTIN_COMMAND=true` to bypass the 9 built-in rules. `additionalRules` is unbypassable.
+
+**Per-segment detection:** Compound commands (`&&`, `||`, `;`) are split and each segment evaluated independently. Env-var prefixes (`VAR=val cat foo`) are stripped before identifying the command word.
+
+**SessionStart announcement:** Emits an `injectContext` notice listing the active rules so the model knows which built-ins are off-limits before its first tool call.
+
+---
+
 ### no-auto-confirm
 
 Blocks commands that pipe automatic responses (`yes`, `echo y`, `printf y`, etc.) into interactive prompts. These patterns simulate human input instead of using the command's designed non-interactive interface.
@@ -138,6 +173,20 @@ Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text
 **Not blocked:**
 - The same string without brackets (e.g. quoted in a meta-discussion).
 - Variants without a `+` sign (`[Pasted text #4 7 lines]`) or with `-` (`[Pasted text #3 -5 lines]`) — neither matches the format Claude Code emits.
+
+---
+
+### tmux-notifications
+
+Visual tmux indicators for Claude Code session state. Sets red window status when idle, bold red with pane flash for permission/elicitation prompts, and resets on activity (new prompt, tool use, session start).
+
+**When to enable:** When running Claude Code inside tmux and you want visual feedback about session state across multiple windows/panes. Not auto-enabled — opt in via `clooks.yml`.
+
+**Config options:** None.
+
+**Escape hatch:** The hook no-ops automatically when the `TMUX` environment variable is not set (i.e., outside tmux). The `beforeHook` calls `event.respond({ result: "skip" })` to bail out early.
+
+**Note:** This hook has no test file. Testing requires a real tmux environment with `TMUX_PANE` set, which cannot be simulated in unit tests.
 
 ---
 
