@@ -1,7 +1,7 @@
 {
   "name": "clooks",
   "description": "Hook runtime for AI coding agents. TypeScript hooks with fail-closed safety, parallel execution, first-class testing, and cross-agent portability.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": {
     "name": "Joe Degler",
     "email": "joe@clooks.cc"

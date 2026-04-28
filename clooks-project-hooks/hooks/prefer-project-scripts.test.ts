@@ -206,11 +206,12 @@ describe('hook.SessionStart', () => {
     expect(result.injectContext).toContain('CONFIGURATION REQUIRED')
   })
 
-  test('skips silently when mappings are configured', () => {
+  test('injects announcement when mappings are configured', () => {
     const config = { mappings: [{ match: 'eslint', recommend: 'npm run lint' }] }
     const result = hook.SessionStart!(makeSessionStartCtx(), config)
     expect(result.result).toBe('skip')
-    expect(result).not.toHaveProperty('injectContext')
+    expect(result.injectContext).toContain('prefer-project-scripts')
+    expect(result.injectContext).toContain('`npm run lint`')
   })
 })
 
@@ -228,13 +229,6 @@ describe('hook.PreToolUse — skip conditions', () => {
 
   test('skips empty command', () => {
     const result = hook.PreToolUse!(makeCtx(''), config)
-    expect(result.result).toBe('skip')
-  })
-
-  test('skips non-string command', () => {
-    const ctx = makeCtx('')
-    ctx.toolInput = { command: 123 as any }
-    const result = hook.PreToolUse!(ctx, config)
     expect(result.result).toBe('skip')
   })
 

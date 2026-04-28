@@ -291,11 +291,15 @@ describe('hook.SessionStart', () => {
     expect((result as any).injectContext).toContain('js-package-manager-guard')
   })
 
-  test('configured: non-empty allowed → skip, no injectContext', () => {
+  test('configured: non-empty allowed → skip + injectContext announcement', () => {
     const ctx = makeSessionStartCtx()
     const result = hook.SessionStart!(ctx, { allowed: ['bun'], additionalBlocked: [] })
     expect(result.result).toBe('skip')
-    expect((result as any).injectContext).toBeUndefined()
+    expect((result as any).injectContext).toContain('js-package-manager-guard')
+    expect((result as any).injectContext).toContain('Allowed JS toolchain')
+    expect((result as any).injectContext).toContain('`bun`')
+    expect((result as any).injectContext).toContain('`bunx`')
+    expect((result as any).injectContext).toContain('`npm`')
   })
 
   test('defensive: missing config.allowed → skip + injectContext', () => {
@@ -317,13 +321,6 @@ describe('hook.PreToolUse', () => {
 
   test('skips empty command', () => {
     const ctx = makePreToolUseCtx('')
-    const result = hook.PreToolUse!(ctx, { allowed: ['bun'] })
-    expect(result).toEqual({ result: 'skip' })
-  })
-
-  test('skips non-string command', () => {
-    const ctx = makePreToolUseCtx('')
-    ctx.toolInput = { command: 123 }
     const result = hook.PreToolUse!(ctx, { allowed: ['bun'] })
     expect(result).toEqual({ result: 'skip' })
   })

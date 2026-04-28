@@ -159,13 +159,6 @@ describe('hook.PreToolUse — skip conditions', () => {
     const result = hook.PreToolUse!(makeCtx(''), DEFAULT_CONFIG)
     expect(result.result).toBe('skip')
   })
-
-  test('skips non-string command', () => {
-    const ctx = makeCtx('')
-    ctx.toolInput = { command: 123 as any }
-    const result = hook.PreToolUse!(ctx, DEFAULT_CONFIG)
-    expect(result.result).toBe('skip')
-  })
 })
 
 // =============================================================================

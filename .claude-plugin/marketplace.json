@@ -9,7 +9,7 @@
     {
       "name": "clooks",
       "description": "Hook runtime for AI coding agents. TypeScript hooks with fail-closed safety, parallel execution, first-class testing, and cross-agent portability.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "./clooks",
       "author": {
         "name": "Joe Degler",
@@ -19,7 +19,7 @@
     {
       "name": "clooks-example-hooks",
       "description": "Educational hook pack: lifecycle, config, events, and debugging examples for clooks",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "source": "./clooks-example-hooks",
       "author": {
         "name": "Clooks",
@@ -29,7 +29,7 @@
     {
       "name": "clooks-core-hooks",
       "description": "Curated zero-config production hooks: command safety, git protection, tool hygiene, and tmux notifications",
-      "version": "0.2.1",
+      "version": "0.2.0",
       "source": "./clooks-core-hooks",
       "author": {
         "name": "Clooks",
@@ -39,7 +39,7 @@
     {
       "name": "clooks-project-hooks",
       "description": "Project-configured hooks: enforce project scripts, protected paths, and JS/TS package manager choice",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "source": "./clooks-project-hooks",
       "author": {
         "name": "Clooks",

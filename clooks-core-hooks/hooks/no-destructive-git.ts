@@ -255,8 +255,8 @@ export const hook: ClooksHook<Config> = {
     // 1. Skip non-Bash tools
     if (ctx.toolName !== 'Bash') return ctx.skip()
 
-    // 2. Skip empty/non-string commands
-    const command = typeof ctx.toolInput.command === 'string' ? ctx.toolInput.command : ''
+    // 2. Skip empty commands
+    const command = ctx.toolInput.command
     if (!command) return ctx.skip()
 
     // 3. Sanitize: strip quoted strings and comments

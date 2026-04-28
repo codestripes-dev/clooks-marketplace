@@ -57,12 +57,19 @@ export const hook: ClooksHook = {
       'Blocks compound bash commands (&&, ||, ;) unless prefixed with ALLOW_COMPOUND=true',
   },
 
+  SessionStart(ctx) {
+    return ctx.skip({
+      injectContext: `INFORMATION (no need to comment on it): The no-compound-commands clooks hook is active in this project. The Bash tool will refuse compound commands joined with \`&&\`, \`||\`, or \`;\`. Issue each command in a separate Bash call, or write a script under \`tmp/\` for multi-step sequences. A single leading \`cd <path> && <one-command>\` is allowed as a special case.`,
+      debugMessage: 'no-compound-commands: announced',
+    })
+  },
+
   PreToolUse(ctx) {
     if (ctx.toolName !== 'Bash') {
       return ctx.skip()
     }
 
-    const command = true ? ctx.toolInput.command : ''
+    const command = ctx.toolInput.command
 
     if (!command) {
       return ctx.skip()

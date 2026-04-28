@@ -139,16 +139,24 @@ Without configuration, this hook cannot protect against bare tool invocations th
       })
     }
 
-    return ctx.skip()
+    const recommendations = Array.from(new Set(
+      mappings.map(m => m.recommend).filter((r): r is string => Boolean(r))
+    ))
+    if (recommendations.length === 0) return ctx.skip()
+    const list = recommendations.map(r => `\`${r}\``).join(', ')
+
+    return ctx.skip({
+      injectContext: `INFORMATION (no need to comment on it): The prefer-project-scripts clooks hook is active in this project. Prefer these project scripts where applicable: ${list}. The Bash tool will refuse direct invocation of the underlying tools when a script exists for them; the block message will name the specific replacement.`,
+      debugMessage: 'prefer-project-scripts: announced',
+    })
   },
 
   PreToolUse(ctx, config) {
     // 1. Skip non-Bash tools (FEAT step 1)
     if (ctx.toolName !== 'Bash') return ctx.skip()
 
-    // 2. Skip empty/non-string commands (FEAT step 2)
-    const command = typeof ctx.toolInput.command === 'string'
-      ? ctx.toolInput.command : ''
+    // 2. Skip empty commands (FEAT step 2)
+    const command = ctx.toolInput.command
     if (!command) return ctx.skip()
 
     // 3. Skip if unconfigured (FEAT step 3)

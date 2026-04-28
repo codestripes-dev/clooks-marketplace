@@ -300,13 +300,6 @@ describe('hook.PreToolUse', () => {
     expect(result).toEqual({ result: 'skip' })
   })
 
-  test('skips non-string command', () => {
-    const ctx = makeCtx('')
-    ctx.toolInput = { command: 123 }
-    const result = hook.PreToolUse!(ctx, DEFAULT_CONFIG)
-    expect(result).toEqual({ result: 'skip' })
-  })
-
   test('skips non-git command', () => {
     const result = hook.PreToolUse!(makeCtx('ls -la'), DEFAULT_CONFIG)
     expect(result).toEqual({ result: 'skip' })

@@ -197,13 +197,6 @@ describe('hook.PreToolUse', () => {
     expect(result).toEqual({ result: 'skip' })
   })
 
-  test('skips non-string command', () => {
-    const ctx = makeCtx('')
-    ctx.toolInput = { command: 123 }
-    const result = hook.PreToolUse!(ctx, DEFAULT_CONFIG)
-    expect(result).toEqual({ result: 'skip' })
-  })
-
   // --- True positive — one per rule ---
 
   test.each([

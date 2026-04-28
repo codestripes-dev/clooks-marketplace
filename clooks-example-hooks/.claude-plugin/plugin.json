@@ -1,7 +1,7 @@
 {
   "name": "clooks-example-hooks",
   "description": "Educational hook pack: lifecycle, config, events, and debugging examples for clooks",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": { "name": "Clooks", "email": "hello@clooks.cc" },
   "repository": "https://github.com/codestripes-dev/clooks-marketplace",
   "license": "MIT",

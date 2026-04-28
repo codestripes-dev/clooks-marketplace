@@ -10,7 +10,7 @@
     "no-compound-commands": {
       "path": "hooks/no-compound-commands.ts",
       "description": "Blocks compound bash commands (&&, ||, ;) unless prefixed with ALLOW_COMPOUND=true",
-      "events": ["PreToolUse"]
+      "events": ["PreToolUse", "SessionStart"]
     },
     "no-bare-mv": {
       "path": "hooks/no-bare-mv.ts",
@@ -32,12 +32,12 @@
     "prefer-builtin-tools": {
       "path": "hooks/prefer-builtin-tools.ts",
       "description": "Blocks bash commands that have dedicated Claude Code tools (cat→Read, grep→Grep, find→Glob, etc.)",
-      "events": ["PreToolUse"]
+      "events": ["PreToolUse", "SessionStart"]
     },
     "no-auto-confirm": {
       "path": "hooks/no-auto-confirm.ts",
       "description": "Blocks piping auto-responses (yes, echo, printf) into commands instead of using non-interactive flags",
-      "events": ["PreToolUse"]
+      "events": ["PreToolUse", "SessionStart"]
     },
     "tmux-notifications": {
       "path": "hooks/tmux-notifications.ts",

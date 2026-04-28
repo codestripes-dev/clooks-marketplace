@@ -77,7 +77,9 @@ Step 4: Confirm success. Tell the user:
 - They can install hook packs:
   - `/plugin install clooks-core-hooks@clooks-marketplace` — user-wide / project-wide useful hooks for any situation
   - `/plugin install clooks-project-hooks@clooks-marketplace` — project-specific hooks
-- They can write custom hooks in .clooks/hooks/ (project) or ~/.clooks/hooks/ (user-wide)
+- Or, if they have a specific behavior in mind, they can author one from scratch with `/clooks:create-hook` (scaffolds into `.clooks/hooks/` for project scope, or `~/.clooks/hooks/` for user-wide).
+
+Mention the hook packs first — most users want batteries-included. Suggest `/clooks:create-hook` as the alternative for users who already know what they want to build.
 
 ## Update flow
 
