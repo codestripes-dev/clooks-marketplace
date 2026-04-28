@@ -122,6 +122,25 @@ Blocks commands that pipe automatic responses (`yes`, `echo y`, `printf y`, etc.
 
 ---
 
+### no-pasted-placeholder
+
+Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text #N +N lines]` placeholder. Claude Code shows that placeholder in the input box for large pastes; if it survives into the submitted prompt, the paste was not expanded and the prompt references nothing.
+
+**When to enable:** Always. The cost of a blocked false positive is one re-submit; the cost of a false negative is a wasted turn responding to a literal placeholder string.
+
+**Config options:** None.
+
+**Escape hatch:** None. Re-paste the actual content, or remove the placeholder text, and submit again.
+
+**Patterns blocked:**
+- `[Pasted text #1 +10 lines]`, `[Pasted text #6 +1 line]`, `[Pasted text #15 +1234 lines]`
+
+**Not blocked:**
+- The same string without brackets (e.g. quoted in a meta-discussion).
+- Variants without a `+` sign (`[Pasted text #4 7 lines]`) or with `-` (`[Pasted text #3 -5 lines]`) — neither matches the format Claude Code emits.
+
+---
+
 ## Contributing
 
 ### Regenerating types.d.ts
