@@ -48,7 +48,7 @@
     "tmux-notifications": {
       "path": "hooks/tmux-notifications.ts",
       "description": "Visual tmux indicators: red for attention, flash for prompts, reset on activity",
-      "events": ["Notification", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SessionStart", "SessionEnd"],
+      "events": ["Notification", "Stop", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SessionStart", "SessionEnd"],
       "autoEnable": false
     }
   }
