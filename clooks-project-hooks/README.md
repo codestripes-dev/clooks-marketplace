@@ -73,9 +73,9 @@ Disable a group by setting it to `false`. Add project-specific globs under `rule
 
 ### prefer-project-scripts
 
-Blocks bare CLI tool invocations when the project has wrapper scripts for them. Nudges the agent toward `bun run lint` / `npm run test` rather than `eslint` / `jest`, so that project-configured flags, env vars, and pre/post hooks run.
+Blocks a matching direct invocation only when its configured package-script recommendation has exactly the same supported literal command words and ordered arguments. It does not redirect a check to a write, drop requested files/options, guess forwarded arguments, or select another script.
 
-**When to enable:** Any project where tools like eslint, prettier, tsc, or jest are wrapped in `package.json` scripts with specific configuration.
+**When to enable:** Projects with literal package scripts whose exact command invocations should use the configured runner. Package-script tools may use any language; this is not limited to JavaScript executables.
 
 **Config options:**
 
@@ -92,6 +92,10 @@ prefer-project-scripts:
       - match: "(?<![\\w-])jest(?![\\w-])"
         recommend: "bun run test"
 ```
+
+**Verification boundary:** Recommendations must be exactly `bun run <script>`, `npm run <script>`, `pnpm run <script>` or `yarn run <script>`, without extra runner arguments. Yarn shorthand remains valid configuration but is unverified and skips, since commands such as `yarn add` can select built-ins rather than scripts. The hook reads package.json as JSON and compares the selected string script with the original command using a bounded literal-word parser. Matching pre/post script keys, environment-assignment prefixes, unquoted tilde/globs, unsupported expansion syntax and listed nested runner/shell/env wrappers prevent verification. Comparison is lexical; it does not prove identical executable resolution or package-runner environments. Neither the original command nor the script is executed during inspection.
+
+Arbitrary non-package recommendations remain valid configuration, but unverifiable matches return skip with debug information only, not allow, injected advice or a coerced replacement. A verified match blocks with the exact configured recommendation. Unconfigured announcements remain unchanged.
 
 `match` is a regex. The recommended pattern `(?<![\\w-])tool(?![\\w-])` avoids matching inside hyphenated package names (e.g. `eslint-plugin-react`).
 

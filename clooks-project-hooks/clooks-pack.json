@@ -20,7 +20,7 @@
     },
     "prefer-project-scripts": {
       "path": "hooks/prefer-project-scripts.ts",
-      "description": "Blocks bare CLI tools when project scripts exist. Configure mappings in clooks.yml.",
+      "description": "Prefers package scripts only when literal executable and complete arguments match; unverifiable recommendations skip. Configure mappings in clooks.yml.",
       "events": ["PreToolUse", "SessionStart"],
       "autoEnable": false
     }
