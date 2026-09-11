@@ -20,13 +20,13 @@ Blocks compound shell commands (`&&`, `||`, `;`) to encourage single-purpose cal
 
 ### no-bare-mv
 
-Rewrites bare `mv` to `git mv` when `git mv` would succeed, preserving git history for renamed/moved files.
+Rewrites a standalone literal `mv` with exactly two nonempty operands and no option except optional `--` when an argv-only `git mv -n` feasibility check succeeds. Supported quotes and escapes are decoded without evaluating a shell; unsupported syntax skips without executing a check. Feasibility is not a guarantee of history preservation.
 
-**When to enable:** In any git-tracked project where you want file moves to preserve history by default.
+**When to enable:** In git-tracked projects where supported file moves should use git mv when feasible.
 
 **Config options:** None.
 
-**Escape hatch:** None needed. The hook runs a dry-run (`git mv -n`) and automatically falls back to allowing bare `mv` when `git mv` would fail (e.g., untracked files, cross-filesystem moves).
+**Escape hatch:** None. Supported invocations use a three-second argv-only dry-run, never the submitted shell command. A failed check retains the allow-with-guidance fallback; successful inspection does not execute the move. Complex commands, expansion, other options and unsupported syntax are skipped.
 
 ---
 
