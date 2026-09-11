@@ -8,13 +8,13 @@ For hooks that encode project-specific decisions (allowed package managers, prot
 
 ### no-compound-commands
 
-Blocks compound bash commands (`&&`, `||`, `;`) to encourage single-purpose Bash calls and use of built-in Claude tools.
+Blocks compound shell commands (`&&`, `||`, `;`) to encourage single-purpose calls. Guidance names Claude tools for Claude Code and separate shell calls or apply_patch when available for Codex; classification and escape behavior are unchanged.
 
 **When to enable:** Always. Prevents Claude from chaining fragile multi-step commands that are hard to debug and audit.
 
 **Config options:** None.
 
-**Escape hatch:** Prefix a command with `ALLOW_COMPOUND=true` to bypass the check. The hook also allows `cd <path> && <command>` as a safe pattern (single-command remainder only).
+**Escape hatch:** Prefix a command with `ALLOW_COMPOUND=true` to bypass the check. The hook also allows `cd <path> && <command>` as a safe pattern (single-command remainder only). The cd exception requires `&&`; `cd <path>; <command>` is blocked unless explicitly escaped.
 
 ---
 
