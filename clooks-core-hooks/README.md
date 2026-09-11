@@ -119,7 +119,7 @@ Extend via `extraAllowlist` in `clooks.yml`. Non-allowlisted within-project path
 
 Blocks bash commands that duplicate Claude Code's first-class tools: `cat`/`head`/`tail` → Read, `grep`/`rg`/`egrep`/`fgrep` → Grep, `find` → Glob, `sed -i` → Edit, `ls` → Glob, `echo`/`printf` with `>` → Write. Also refuses `sleep` outright. Stream uses (piped `grep`, `sed` without `-i`, `tail -f`) are explicitly allowed.
 
-**When to enable:** Always when working with Claude Code. Built-in tools provide structured output, permission caching, and integrate with the rest of the toolchain. The hook is a no-op for agents that don't have those tools.
+**When to enable:** Always when working with Claude Code. Built-in tools provide structured output, permission caching, and integrate with the rest of the toolchain. For explicit Codex, built-in read/search/listing restrictions are skipped; applicable sed-in-place, redirected-write and sleep rules remain, with apply_patch or available process-wait guidance. Configured additional rules and rule disables still apply. Claude and legacy undefined-provider contexts keep their existing guidance. Provider identity is not tool discovery.
 
 **Config options:**
 
