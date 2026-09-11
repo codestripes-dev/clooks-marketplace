@@ -97,9 +97,9 @@ Educational pack for learning the clooks authoring model. Not meant for producti
 
 | Hook | What it teaches |
 |------|-----------------|
-| **debug-payload** | Environment-variable gating via `beforeHook`, multi-event handling, file logging |
-| **lifecycle-example** | `beforeHook`/`afterHook` lifecycle, config schema with defaults, branch-based gating |
-| **kitchen-sink** | One handler per event — reference for available context fields |
+| **debug-payload** | Opt-in serializable normalized-context inspection; skip-only event handling and best-effort unredacted logs. PreToolUse/PostCompact/SessionEnd are debug-only. |
+| **lifecycle-example** | Configured branch gating with intentional allow otherwise; timing via lifecycle debug passthrough, not stdout |
+| **kitchen-sink** | Skip-only normalized-context reference for 21 events; WorktreeCreate deliberately omitted |
 
 ```bash
 claude plugin install clooks-example-hooks

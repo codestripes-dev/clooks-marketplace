@@ -78,9 +78,11 @@ describe("lifecycle-example", () => {
     const result = await hook.beforeHook!(event, { protectedBranches: ["staging"] })
     expect(result).toBeDefined()
     expect((result as any).result).toBe("block")
+    expect((result as any).reason).toContain("staging")
+    expect((result as any).reason).not.toContain("production")
   })
 
-  test("afterHook computes positive duration", async () => {
+  test("afterHook emits timing through passthrough without stdout", async () => {
     const beforeEvent = makeBeforeEvent({
       type: "PreToolUse",
       input: { toolName: "Bash", toolInput: {}, event: "PreToolUse" },
@@ -100,14 +102,18 @@ describe("lifecycle-example", () => {
     const origLog = console.log
     console.log = (...args: unknown[]) => { logs.push(args.join(" ")) }
     try {
-      await hook.afterHook!(afterEvent, hook.meta.config!)
+      const result = await hook.afterHook!(afterEvent, hook.meta.config!)
+      expect(result).toMatchObject({
+        result: "passthrough",
+        debugMessage: expect.stringMatching(/\[lifecycle-example\] PreToolUse handler took \d+\.\dms/),
+      })
+      expect(afterEvent.handlerResult).toEqual({ result: "allow" })
+      expect(await hook.afterHook!(afterEvent, hook.meta.config!)).toBeUndefined()
     } finally {
       console.log = origLog
     }
 
-    expect(logs.length).toBe(1)
-    expect(logs[0]).toContain("[lifecycle-example]")
-    expect(logs[0]).toContain("ms")
+    expect(logs).toEqual([])
   })
 
   test("handler returns allow", () => {

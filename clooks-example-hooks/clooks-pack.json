@@ -9,20 +9,20 @@
   "hooks": {
     "debug-payload": {
       "path": "hooks/debug-payload.ts",
-      "description": "Echoes hook payload into conversation context when CLOOKS_DEBUG=true",
-      "events": ["PreToolUse", "UserPromptSubmit", "PermissionRequest", "Stop", "SubagentStop", "ConfigChange", "SessionStart", "PostToolUse", "PostToolUseFailure", "Notification", "SubagentStart", "SessionEnd", "InstructionsLoaded", "WorktreeRemove", "PreCompact", "TeammateIdle", "TaskCompleted"],
+      "description": "Inspects serializable normalized context with skip-only debug logging when CLOOKS_DEBUG=true",
+      "events": ["PreToolUse", "UserPromptSubmit", "PermissionRequest", "Stop", "SubagentStop", "ConfigChange", "SessionStart", "PostToolUse", "PostToolUseFailure", "Notification", "SubagentStart", "SessionEnd", "InstructionsLoaded", "WorktreeRemove", "PreCompact", "PostCompact", "TeammateIdle", "TaskCompleted"],
       "autoEnable": false
     },
     "lifecycle-example": {
       "path": "hooks/lifecycle-example.ts",
-      "description": "Demonstrates beforeHook/afterHook lifecycle, config schema, and branch gating",
+      "description": "Demonstrates branch gating with intentional allow and timing via lifecycle debug passthrough",
       "events": ["PreToolUse"],
       "autoEnable": false
     },
     "kitchen-sink": {
       "path": "hooks/kitchen-sink.ts",
-      "description": "Handler for every event — reference showing available context fields",
-      "events": ["PreToolUse", "PostToolUse", "PostToolUseFailure", "UserPromptSubmit", "SessionStart", "SessionEnd", "Stop", "SubagentStop", "SubagentStart", "InstructionsLoaded", "Notification", "PermissionRequest", "ConfigChange", "WorktreeCreate", "WorktreeRemove", "PreCompact", "TeammateIdle", "TaskCompleted"],
+      "description": "Skip-only normalized-context reference for 21 events; WorktreeCreate intentionally excluded",
+      "events": ["PreToolUse", "PostToolUse", "PostToolUseFailure", "UserPromptSubmit", "SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "SubagentStart", "InstructionsLoaded", "Notification", "PermissionRequest", "PermissionDenied", "ConfigChange", "WorktreeRemove", "PreCompact", "PostCompact", "TeammateIdle", "TaskCreated", "TaskCompleted"],
       "autoEnable": false
     }
   }

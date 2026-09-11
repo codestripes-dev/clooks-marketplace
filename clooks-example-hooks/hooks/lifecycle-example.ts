@@ -2,7 +2,7 @@
 //
 // - beforeHook: blocks Bash on configurable protected branches, records start time.
 // - handler: allows all tool uses.
-// - afterHook: logs handler duration.
+// - afterHook: reports handler duration through debug diagnostics, never stdout.
 //
 // Note: The module-level phaseStartTime variable is not concurrency-safe.
 // In parallel mode, interleaved invocations would overwrite each other's
@@ -34,7 +34,7 @@ export const hook: ClooksHook<Config> = {
       event.input.toolName === "Bash"
     ) {
       return event.block({
-        reason: "Bash commands are blocked on the production branch",
+        reason: `Shell commands are blocked on the ${event.meta.gitBranch} branch`,
       })
     }
   },
@@ -46,8 +46,10 @@ export const hook: ClooksHook<Config> = {
   afterHook(event) {
     if (phaseStartTime !== undefined) {
       const duration = performance.now() - phaseStartTime
-      console.log(`[lifecycle-example] ${event.type} handler took ${duration.toFixed(1)}ms`)
       phaseStartTime = undefined
+      return event.passthrough({
+        debugMessage: `[lifecycle-example] ${event.type} handler took ${duration.toFixed(1)}ms`,
+      })
     }
   },
 }
