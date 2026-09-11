@@ -138,6 +138,8 @@ Every rule is enabled by default. Set the rule ID to `false` in `clooks.yml` to 
 
 ### no-auto-confirm
 
+Supported quoted literal inputs such as `echo 'y'`, `echo "yes"`, and printf confirmation formats are inspected when piped to a command; inert quoted pipe text is not a pipeline. The bounded lexer does not evaluate shell substitutions or expansions. Unsupported nested execution, heredocs or incomplete quoting stop inspection while retaining already complete prefix pipelines. This is not a complete shell parser.
+
 Blocks commands that pipe automatic responses (`yes`, `echo y`, `printf y`, etc.) into interactive prompts. These patterns simulate human input instead of using the command's designed non-interactive interface.
 
 **When to enable:** Always. This hook addresses a real AI agent failure mode where agents bypass confirmation prompts — prompts that exist because the program's author determined the action requires human judgment.

@@ -1,10 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import type { PreToolUseContext } from './types'
+import type { PreToolUseContext, SessionStartContext } from './types'
 import {
   hook,
-  sanitize,
-  getSegments,
-  stripEnvPrefix,
+  confirmationTokens,
   isAutoConfirm,
 } from './no-auto-confirm'
 
@@ -31,46 +29,82 @@ function makeCtx(command: string, toolName = 'Bash'): PreToolUseContext {
 
 const DEFAULT_CONFIG = {}
 
+describe('bounded confirmation regressions', () => {
+  test.each([
+    "echo 'y' | command",
+    'echo "yes" | command',
+    "printf '%s\\n' 'yes' | command",
+    "printf '%b' 'y\\n' | command",
+    "A='literal space' echo 'y' | command",
+    "echo ok\nprintf 'y\\n' | command",
+    "echo ok; echo 'y' | command",
+    'yes $WORD | command',
+    'yes "$ANSWER" | command',
+    'yes | command; echo $(date)',
+    'echo "yes" | command; echo `date`',
+    "yes | command; cat <<EOF\ntext\nEOF",
+    "yes | command; echo 'unfinished",
+  ])('blocks supported pipeline: %s', (command) => {
+    expect(isAutoConfirm(command)).toBe(true)
+    expect(hook.PreToolUse!(makeCtx(command), DEFAULT_CONFIG).result).toBe('block')
+  })
+
+  test.each([
+    'echo "echo y | command"',
+    '# echo y | command',
+    'echo ok # echo y | command',
+    "echo 'a; echo y | cmd'",
+    'echo "$(echo y | command)"',
+    'cat <<EOF\necho y | command\nEOF',
+    "echo 'y | command",
+    'echo "$ANSWER" | command',
+    'echo y* | command',
+    "printf '%s' 'y\\n' | command",
+    'echo y || command',
+    'echo hello > yes | cat',
+    'echo hello >> yes | cat',
+    'cat < yes | cat',
+  ])('skips inert or unsupported text: %s', (command) => {
+    expect(isAutoConfirm(command)).toBe(false)
+    expect(hook.PreToolUse!(makeCtx(command), DEFAULT_CONFIG).result).toBe('skip')
+  })
+})
+
+describe('hook.SessionStart', () => {
+  test.each(['claude-code', 'codex'])('announces provider-neutral guidance for %s', (provider) => {
+    const ctx = {
+      ...makeCtx(''),
+      event: 'SessionStart',
+      provider,
+    } as unknown as SessionStartContext
+    const result = hook.SessionStart!(ctx, DEFAULT_CONFIG) as any
+    expect(result.result).toBe('skip')
+    expect(result.debugMessage).toBe('no-auto-confirm: announced')
+    expect(result.injectContext).toContain('Shell commands will be blocked for')
+    expect(result.injectContext).not.toContain('Bash')
+    expect(result.injectContext).toContain('`yes |`, `echo y |`, `printf y |`')
+    expect(result.injectContext).toContain('`-y`, `--yes`, `--force`, `--non-interactive`, `-auto-approve`')
+    expect(result.injectContext).toContain('ask the user to run the command interactively')
+  })
+})
+
 // =============================================================================
 // Section 1: Utility function tests
 // =============================================================================
 
-describe('sanitize', () => {
-  test.each([
-    ['strips single-quoted strings', "echo 'yes | foo' bar", 'echo  bar'],
-    ['strips double-quoted strings', 'echo "yes | foo" bar', 'echo  bar'],
-    ['strips comments', 'yes | foo # auto-confirm', 'yes | foo '],
-    ['strips all three', `echo 'a' "b" # c`, 'echo   '],
-    ['preserves unquoted content', 'yes | rm -rf /tmp', 'yes | rm -rf /tmp'],
-  ])('%s', (_label, input, expected) => {
-    expect(sanitize(input)).toBe(expected)
-  })
-})
-
-describe('getSegments', () => {
-  test.each([
-    ['splits on &&', 'a && b', ['a', 'b']],
-    ['splits on ||', 'a || b', ['a', 'b']],
-    ['splits on ;', 'a ; b', ['a', 'b']],
-    ['handles mixed operators', 'a && b || c ; d', ['a', 'b', 'c', 'd']],
-    ['filters empty segments', ' && ', []],
-    ['single segment', 'yes | command', ['yes | command']],
-  ])('%s', (_label, input, expected) => {
-    expect(getSegments(input)).toEqual(expected)
-  })
-})
-
-describe('stripEnvPrefix', () => {
-  test.each([
-    ['no prefix', 'yes | command', 'yes | command'],
-    ['single prefix', 'NPM_TOKEN=xxx yes | command', 'yes | command'],
-    ['multiple prefixes', 'A=1 B=2 yes | command', 'yes | command'],
-    ['leading whitespace', '  yes | command', 'yes | command'],
-    ['prefix + whitespace', '  VAR=val yes | command', 'yes | command'],
-    ['empty string', '', ''],
-    ['whitespace only', '   ', ''],
-  ])('%s', (_label, input, expected) => {
-    expect(stripEnvPrefix(input)).toBe(expected)
+describe('confirmationTokens', () => {
+  test('retains quoted words and distinguishes operators from inert text', () => {
+    expect(confirmationTokens(`A='literal space' echo "y" | command # yes | other`)).toEqual([
+      { kind: 'word', value: 'A=literal space', literal: true },
+      { kind: 'word', value: 'echo', literal: true },
+      { kind: 'word', value: 'y', literal: true },
+      { kind: 'operator', value: '|' },
+      { kind: 'word', value: 'command', literal: true },
+    ])
+    expect(confirmationTokens("echo 'yes | command'")).toEqual([
+      { kind: 'word', value: 'echo', literal: true },
+      { kind: 'word', value: 'yes | command', literal: true },
+    ])
   })
 })
 
@@ -86,8 +120,8 @@ describe('isAutoConfirm', () => {
     ['yes standalone (no pipe)', 'yes', false],
     ['yes with arg (no pipe)', 'yes sure', false],
     ['YES | (false-positive: uppercase command — not a valid Linux binary)', 'YES | command', false],
-    ['\\yes | (known limitation: backslash escape bypasses hook)', '\\yes | command', false],
-    ['yes with two arguments (known limitation: regex handles one arg)', 'yes sure thing | command', false],
+    ['escaped yes command', '\\yes | command', true],
+    ['yes with two arguments', 'yes sure thing | command', true],
   ])('yes: %s → %s', (_label, input, expected) => {
     expect(isAutoConfirm(input)).toBe(expected)
   })
@@ -177,6 +211,8 @@ describe('hook.PreToolUse — true positives', () => {
     ['echo -en y |', 'echo -en y | command'],
     ['printf y |', 'printf y | command'],
     ['printf YES |', 'printf YES | command'],
+    ['quoted echo confirmation', 'echo "y" | command'],
+    ['quoted printf confirmation', "printf 'y\\n' | apt install foo"],
     ['/usr/bin/yes |', '/usr/bin/yes | command'],
     ['compound: cd && yes |', 'cd /tmp && yes | rm -rf *'],
     ['compound: cmd ; echo y |', 'ls ; echo y | command'],
@@ -203,10 +239,8 @@ describe('hook.PreToolUse — true negatives', () => {
     ['echo yesterday | (false-positive: starts with y)', 'echo yesterday | command'],
     ['echo ye | (false-positive: partial token)', 'echo ye | command'],
     ['quoted: echo \'yes | ...\'', "echo 'yes | something'"],
-    ['quoted: echo "y" | (sanitized away)', 'echo "y" | command'],
     ['cat file | grep (not auto-confirm)', 'cat file | grep pattern'],
     ['apt install -y (using designed flag)', 'apt install -y foo'],
-    ['printf with quoted arg (known limitation: sanitization trade-off)', "printf 'y\\n' | apt install foo"],
     ['command with no pipe at all', 'rm -rf /tmp'],
   ])('allows %s', (_label, command) => {
     const result = hook.PreToolUse!(makeCtx(command), DEFAULT_CONFIG)
@@ -219,7 +253,7 @@ describe('hook.PreToolUse — true negatives', () => {
 // =============================================================================
 
 describe('hook.PreToolUse — edge cases', () => {
-  test('block message matches FEAT-0053 spec', () => {
+  test('block message preserves non-interactive guidance', () => {
     const result = hook.PreToolUse!(makeCtx('yes | command'), DEFAULT_CONFIG) as any
     expect(result.reason).toBe(
       'Piping auto-responses (yes, echo, printf) into a command simulates human input ' +
@@ -255,8 +289,7 @@ describe('hook.PreToolUse — edge cases', () => {
     expect(result.result).toBe('block')
   })
 
-  test('sanitization removes quoted auto-confirm from all segments', () => {
-    // The yes | is inside quotes, so after sanitization it disappears
+  test('quoted auto-confirm text is inert across segments', () => {
     const result = hook.PreToolUse!(makeCtx("echo 'yes | something' && ls"), DEFAULT_CONFIG)
     expect(result.result).toBe('skip')
   })
@@ -267,8 +300,7 @@ describe('hook.PreToolUse — edge cases', () => {
     expect(result.result).toBe('block')
   })
 
-  test('sanitization: yes with quoted arg still blocks (arg stripped but yes| remains)', () => {
-    // "yes 'confirm' | cmd" → after sanitization → "yes  | cmd" → still blocks
+  test('yes with quoted argument still blocks', () => {
     const result = hook.PreToolUse!(makeCtx("yes 'confirm' | rm -rf /tmp"), DEFAULT_CONFIG) as any
     expect(result.result).toBe('block')
   })
