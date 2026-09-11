@@ -14,7 +14,7 @@
     },
     "no-edit-protected": {
       "path": "hooks/no-edit-protected.ts",
-      "description": "Blocks Write/Edit/MultiEdit on protected paths (lock files, vendor dirs, minified assets, and custom rules)",
+      "description": "Blocks Write/Edit/MultiEdit and Codex apply_patch on protected paths (root/nested lock files, vendor dirs, minified assets, and custom rules)",
       "events": ["PreToolUse"],
       "tags": ["guard", "safety", "files"]
     },

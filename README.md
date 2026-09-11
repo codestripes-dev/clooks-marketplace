@@ -80,7 +80,7 @@ Project-configured hooks that encode decisions only you can make. Install after 
 | Hook | What it does |
 |------|--------------|
 | **js-package-manager-guard** | Blocks wrong JS/TS package managers, runners, and runtimes. Configure `allowed` in `clooks.yml`. Emits a SessionStart warning when unconfigured. |
-| **no-edit-protected** | Blocks Write/Edit/MultiEdit/NotebookEdit on protected paths (lock files, vendor dirs, minified assets). Toggle built-in groups or add custom `rules`. |
+| **no-edit-protected** | Blocks Claude Write/Edit/MultiEdit and Codex native apply_patch on protected paths, including both move paths and root/nested lock files such as bun.lock. Toggle built-in groups or add custom `rules`; NotebookEdit is not intercepted. |
 | **prefer-project-scripts** | Blocks bare CLI invocations when project scripts exist (`eslint src/` → `bun run lint`). Configure `mappings` in `clooks.yml`. Not auto-enabled. |
 
 ```bash

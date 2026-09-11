@@ -36,7 +36,7 @@ js-package-manager-guard:
 
 ### no-edit-protected
 
-Blocks Write/Edit/MultiEdit/NotebookEdit on protected paths. Prevents the agent from editing files that should change via a different workflow (regeneration, manual curation, vendor upstream).
+Blocks Claude Write/Edit/MultiEdit and explicit Codex native apply_patch on protected paths. NotebookEdit and unrelated tools are not intercepted. Prevents the agent from editing files that should change via a different workflow (regeneration, manual curation, vendor upstream).
 
 **When to enable:** Any project with generated files, vendored dependencies, or lockfiles that agents should not hand-edit.
 
@@ -57,9 +57,13 @@ no-edit-protected:
 ```
 
 Built-in rule groups:
-- `lock-files` — `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`, `Gemfile.lock`, `poetry.lock`, `Pipfile.lock`, `composer.lock`, `Cargo.lock`, `go.sum`, `flake.lock`, `pubspec.lock`
+- `lock-files` — `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `Gemfile.lock`, `poetry.lock`, `Pipfile.lock`, `composer.lock`, `Cargo.lock`, `go.sum`, `flake.lock`, `pubspec.lock`
 - `vendor-dirs` — `**/vendor/**`, `**/vendored/**`
 - `minified-assets` — `**/*.min.js`, `**/*.min.css`, `**/*.min.mjs`
+
+Lock names use `**/` patterns covering project-root and nested workspace files.
+
+Native patch inspection reads the string command payload and scans supported Add/Delete/Update headers plus both move paths, resolving paths against cwd before existing rules. It uses the typed unknown-tool context; it neither applies contents nor replaces native malformed-patch validation. Supported environment-ID/heredoc envelopes and CRLF are handled. Paths outside the existing cwd matching boundary remain outside this hook's protection.
 
 Disable a group by setting it to `false`. Add project-specific globs under `rules` with custom block messages and optional `except` list.
 
