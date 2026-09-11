@@ -1,0 +1,10 @@
+{
+  "name": "clooks-marketplace",
+  "interface": { "displayName": "Clooks Marketplace" },
+  "plugins": [{
+    "name": "clooks",
+    "source": { "source": "local", "path": "./clooks" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }]
+}

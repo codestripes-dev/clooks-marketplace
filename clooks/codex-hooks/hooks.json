@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [{
+      "hooks": [{
+        "type": "command",
+        "command": "CLOOKS_AGENT=codex bash \"${PLUGIN_ROOT}/hooks/install-entrypoint.sh\""
+      }]
+    }]
+  }
+}

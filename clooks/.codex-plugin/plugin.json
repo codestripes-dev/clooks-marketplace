@@ -1,0 +1,20 @@
+{
+  "name": "clooks",
+  "version": "0.3.0",
+  "description": "Set up the Clooks hook runtime in Codex.",
+  "author": { "name": "Joe Degler", "email": "joe@clooks.cc" },
+  "homepage": "https://clooks.cc",
+  "repository": "https://github.com/codestripes-dev/clooks-marketplace",
+  "license": "MIT",
+  "skills": "./codex-skills/",
+  "hooks": "./codex-hooks/hooks.json",
+  "interface": {
+    "displayName": "Clooks",
+    "shortDescription": "Set up the Clooks hook runtime",
+    "longDescription": "Install, update, or check Clooks and initialize Codex hooks. Plugin startup only provides a setup reminder.",
+    "developerName": "Clooks",
+    "category": "Productivity",
+    "capabilities": ["Write"],
+    "websiteURL": "https://clooks.cc"
+  }
+}

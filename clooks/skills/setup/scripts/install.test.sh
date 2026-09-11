@@ -4,10 +4,10 @@
 # Tests for install.sh.
 #
 # Run with: bash install.test.sh
-# Requires: bash 4+, curl, python3, and either sha256sum or shasum.
+# Requires: bash 3.2+, curl, python3, and sha256sum or shasum.
 #
-# The harness spins up a local HTTP fixture server (python3 -m http.server)
-# serving a fake clooks binary and a live-generated checksums.txt. It then
+# The harness serves downloads over loopback HTTP and builds an isolated tool
+# PATH that cannot select an installed host Clooks. It then
 # runs install.sh with:
 #   - HOME pointed at a temp dir
 #   - SHELL set for the scenario under test (/bin/zsh or /bin/bash)
@@ -75,7 +75,7 @@ sha256_of() {
   fi
 }
 
-# ---- Fixture server ---------------------------------------------------------
+# ---- Download fixtures -----------------------------------------------------
 
 # Detect host OS/arch tokens (the same way install.sh does) so the fixture
 # binary's filename matches what the script will request. For the macOS
@@ -92,6 +92,26 @@ host_arch_token() {
 FIXTURE_ROOT="$(mktemp -d)"
 FIXTURE_PORT=""
 FIXTURE_PID=""
+REAL_CURL="$(command -v curl)"
+TOOLS="$FIXTURE_ROOT/tools"
+mkdir -p "$TOOLS" "$FIXTURE_ROOT/tmp"
+export TMPDIR="$FIXTURE_ROOT/tmp"
+for tool in bash uname awk grep head tr mktemp mkdir rm mv cp chmod dirname basename; do
+  ln -s "$(command -v "$tool")" "$TOOLS/$tool"
+done
+if command -v sha256sum >/dev/null 2>&1; then
+  ln -s "$(command -v sha256sum)" "$TOOLS/sha256sum"
+else
+  ln -s "$(command -v shasum)" "$TOOLS/shasum"
+fi
+cat >"$TOOLS/curl" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+[[ "$1" == -fsSL && "$2" == -o && $# == 4 ]] || exit 90
+printf '%s\n' "$4" >>"$CLOOKS_INSTALL_FIXTURE_ROOT/curl.log"
+exec "$CLOOKS_TEST_CURL" "$@"
+EOF
+chmod +x "$TOOLS/curl"
 
 # Build the fixture tree under FIXTURE_ROOT:
 #   latest/download/clooks-<os>-<arch>   (fake binary: prints a --version stub)
@@ -111,7 +131,7 @@ setup_fixture_files() {
   cat >"$dir/$asset" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then
-  printf 'clooks fake 0.0.0\n'
+  printf 'clooks 0.0.0\n'
 fi
 EOF
   chmod +x "$dir/$asset"
@@ -123,41 +143,26 @@ EOF
 }
 
 start_fixture_server() {
-  # Start python3 -m http.server on an ephemeral port. `-u` forces
-  # unbuffered stderr so the harness can read the listening-port line
-  # without a buffer-flush race.
-  (cd "$FIXTURE_ROOT" && exec python3 -u -m http.server 0 >"$FIXTURE_ROOT/server.log" 2>&1) &
+  (cd "$FIXTURE_ROOT" && exec python3 -u -m http.server --bind 127.0.0.1 0 >"$FIXTURE_ROOT/server.log" 2>&1) &
   FIXTURE_PID=$!
-
-  # The server logs "Serving HTTP on 0.0.0.0 port NNNNN ..." once ready.
   local tries=0
-  while [[ $tries -lt 100 ]]; do
-    if grep -oE 'port [0-9]+' "$FIXTURE_ROOT/server.log" 2>/dev/null | head -1 >/dev/null; then
-      FIXTURE_PORT="$(grep -oE 'port [0-9]+' "$FIXTURE_ROOT/server.log" | head -1 | awk '{print $2}')"
-      break
-    fi
+  while [[ "$tries" -lt 100 ]]; do
+    FIXTURE_PORT="$(grep -oE 'port [0-9]+' "$FIXTURE_ROOT/server.log" | head -1 | awk '{print $2}')"
+    if [[ -n "$FIXTURE_PORT" ]]; then return 0; fi
     sleep 0.05
     tries=$((tries + 1))
   done
-  if [[ -z "$FIXTURE_PORT" ]]; then
-    printf 'fixture server failed to start; log:\n' >&2
-    cat "$FIXTURE_ROOT/server.log" >&2
-    exit 1
-  fi
-}
-
-# shellcheck disable=SC2329 # invoked indirectly via EXIT trap.
-stop_fixture_server() {
-  if [[ -n "$FIXTURE_PID" ]] && kill -0 "$FIXTURE_PID" 2>/dev/null; then
-    kill "$FIXTURE_PID" 2>/dev/null || true
-    wait "$FIXTURE_PID" 2>/dev/null || true
-  fi
-  FIXTURE_PID=""
+  printf 'fixture server failed to start\n' >&2
+  cat "$FIXTURE_ROOT/server.log" >&2
+  exit 1
 }
 
 # shellcheck disable=SC2329 # invoked indirectly via EXIT trap.
 cleanup_all() {
-  stop_fixture_server
+  if [[ -n "$FIXTURE_PID" ]]; then
+    kill "$FIXTURE_PID" 2>/dev/null || true
+    wait "$FIXTURE_PID" 2>/dev/null || true
+  fi
   rm -rf "$FIXTURE_ROOT"
 }
 trap cleanup_all EXIT
@@ -218,25 +223,46 @@ EOF
 #   $1 HOME
 #   $2 SHELL
 #   $3 extra PATH prefix (empty string for none)
-#   $4 action (install|update|check)
+#   $4 action (install|update|check|resolve)
+#   $5 optional requested version
 run_install() {
   local home_dir="$1"
   local shell_val="$2"
   local path_prefix="$3"
   local action="$4"
+  local project="$home_dir/test-project" before after status=0
+  if [[ ! -d "$project" ]]; then
+    mkdir -p "$project/.clooks"
+    printf 'version: "1.0.0"\n# fixture: preserve existing configuration\n' >"$project/.clooks/clooks.yml"
+  fi
+  before="$(sha256_of "$project/.clooks/clooks.yml")"
 
   local base_url="http://127.0.0.1:${FIXTURE_PORT}"
-  local full_path="$PATH"
+  local full_path="$TOOLS"
   if [[ -n "$path_prefix" ]]; then
-    full_path="${path_prefix}:${PATH}"
+    full_path="${path_prefix}:${TOOLS}"
   fi
 
-  env -i \
+  (cd "$project" && env -i \
     HOME="$home_dir" \
     SHELL="$shell_val" \
     PATH="$full_path" \
+    TMPDIR="$TMPDIR" \
+    CLOOKS_VERSION="${5:-latest}" \
+    CLOOKS_INSTALL_FIXTURE_ROOT="$FIXTURE_ROOT" \
+    CLOOKS_TEST_CURL="$REAL_CURL" \
     CLOOKS_INSTALL_BASE_URL="$base_url" \
-    bash "$INSTALL_SH" "$action"
+    bash "$INSTALL_SH" "$action") || status=$?
+  case "$action" in
+    install|check|resolve)
+      after="$(sha256_of "$project/.clooks/clooks.yml" 2>/dev/null)"
+      if [[ "$before" != "$after" ]]; then
+        fail "$action changed disposable project config" >&2
+        return 1
+      fi
+      ;;
+  esac
+  return "$status"
 }
 
 # ---- Fixture 1: zsh happy path ---------------------------------------------
@@ -266,7 +292,7 @@ test_zsh_happy_path() {
 
   local ver
   ver="$("$bin" --version 2>/dev/null || true)"
-  assert_eq "$ver" "clooks fake 0.0.0" "binary --version output"
+  assert_eq "$ver" "clooks 0.0.0" "binary --version output"
 
   local zshrc="$home_dir/.zshrc"
   local count
@@ -515,6 +541,196 @@ test_unsupported_platform() {
   rm -rf "$shim_arch"
 }
 
+make_binary() {
+  local target="$1" version="${2:-0.2.1}" status="${3:-0}"
+  mkdir -p "$(dirname "$target")"
+  cat >"$target" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == --version ]]; then
+  printf '%s\n' '$version'
+  exit $status
+fi
+printf '%s|%s\n' "\$0" "\$*" >>"\$HOME/init.log"
+EOF
+  chmod +x "$target"
+}
+
+assert_failed() {
+  if [[ "$1" -ne 0 ]]; then pass "$2"; else fail "$2"; fi
+}
+
+test_reuse_and_resolution() {
+  banner "PATH selection, managed fallback, reuse and version checks"
+  local home external managed out rc downloads action original managed_original init_log
+  home="$(mktemp -d)/home with spaces"
+  external="$(mktemp -d)/external tools"
+  mkdir -p "$home" "$external"
+  managed="$home/.local/bin/clooks"
+  make_binary "$external/clooks" 0.2.1
+  make_binary "$managed" 0.1.0
+  downloads="$(cat "$FIXTURE_ROOT/curl.log")"
+
+  out="$(run_install "$home" /bin/bash "$external" resolve 2>"$home/errors")"
+  rc=$?
+  assert_eq "$rc" 0 "resolve succeeds with external PATH selection"
+  assert_eq "$out" "$external/clooks" "resolve stdout contains only exact PATH binary"
+  if [[ "$rc" != 0 || "$out" != "$external/clooks" ]]; then
+    fail "aborting case: resolver did not return the known fixture executable"
+    return 1
+  fi
+  (cd "$home/test-project" && env -i HOME="$home" PATH="$TOOLS" "$out" init --global)
+  assert_eq "$(cat "$home/init.log")" "$external/clooks|init --global" "resolved path actually receives init arguments"
+  init_log="$(cat "$home/init.log")"
+  run_install "$home" /bin/bash "$external" install >"$home/output" 2>&1
+  assert_eq "$?" 0 "install reuses PATH binary ahead of managed copy"
+  assert_eq "$("$managed" --version)" 0.1.0 "managed copy not replaced during external reuse"
+  run_install "$home" /bin/bash "$external" check >"$home/output" 2>&1
+  assert_eq "$?" 0 "check validates selected PATH binary"
+  if grep -Fq "$external/clooks" "$home/output"; then pass "check reports actual selection"; else fail "check selected managed copy"; fi
+
+  for action in install check resolve; do
+    rc=0
+    run_install "$home" /bin/bash "$external" "$action" v0.3.0 >"$home/output" 2>"$home/errors" || rc=$?
+    assert_failed "$rc" "$action rejects requested-version mismatch"
+    if grep -Fq 'explicit update' "$home/errors"; then pass "$action explains explicit update"; else fail "$action lacks mismatch guidance"; fi
+  done
+  run_install "$home" /bin/bash "$external" resolve v0.2.1 >"$home/output" 2>&1
+  assert_eq "$?" 0 "v-prefixed matching pin permits reuse"
+
+  rc=0
+  run_install "$home" /bin/bash "$external" update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "external update refuses overwrite or shadow copy"
+  assert_eq "$("$external/clooks" --version)" 0.2.1 "external update preserves selected binary"
+  assert_eq "$("$managed" --version)" 0.1.0 "external update preserves managed binary"
+
+  rm "$managed"
+  rc=0
+  run_install "$home" /bin/bash "$external" update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "external-only update refuses shadow install"
+  if [[ ! -e "$managed" ]]; then pass "no managed shadow created"; else fail "managed shadow created"; fi
+  make_binary "$managed" 0.1.0
+  managed_original="$(sha256_of "$managed")"
+  for action in install resolve check; do
+    make_binary "$external/clooks" 0.2.1 7
+    original="$(sha256_of "$external/clooks")"
+    rc=0
+    run_install "$home" /bin/bash "$external" "$action" >"$home/output" 2>&1 || rc=$?
+    assert_failed "$rc" "$action fails broken PATH binary without managed fallback"
+    assert_eq "$(sha256_of "$external/clooks")" "$original" "$action preserves broken external binary bytes"
+    assert_eq "$(sha256_of "$managed")" "$managed_original" "$action preserves managed fallback bytes on broken PATH binary"
+    assert_eq "$(cat "$home/init.log")" "$init_log" "$action never calls init on broken binary"
+  done
+  make_binary "$external/clooks" nonsense
+  rc=0
+  run_install "$home" /bin/bash "$external" check >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "check rejects malformed version"
+  make_binary "$external/clooks" ''
+  # Empty stdout is a separate malformed-output case.
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$external/clooks"
+  rc=0
+  run_install "$home" /bin/bash "$external" resolve >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "resolve rejects empty version output"
+
+  out="$(run_install "$home" /bin/bash '' resolve 2>"$home/errors")"
+  assert_eq "$?" 0 "managed off-PATH resolve succeeds"
+  assert_eq "$out" "$managed" "managed fallback path is exact and quoted safely"
+  if grep -Fq 'unavailable on this process PATH' "$home/errors"; then pass "managed fallback warns about agent PATH"; else fail "managed PATH warning absent"; fi
+  run_install "$home" /bin/bash '' install >"$home/output" 2>&1
+  assert_eq "$?" 0 "managed off-PATH install reuses binary"
+  if [[ ! -e "$home/.bashrc" ]]; then pass "reuse never edits shell rc"; else fail "reuse edited shell rc"; fi
+  assert_eq "$(cat "$FIXTURE_ROOT/curl.log")" "$downloads" "reuse/check/resolve/refused update never downloads"
+  assert_eq "$(cat "$home/init.log")" "$init_log" "install/check/resolve/update do not initialize projects implicitly"
+
+  make_binary "$managed" 0.1.0 8
+  original="$(sha256_of "$managed")"
+  for action in install check resolve; do
+    rc=0
+    run_install "$home" /bin/bash '' "$action" >"$home/output" 2>&1 || rc=$?
+    assert_failed "$rc" "$action rejects broken managed executable"
+    assert_eq "$(sha256_of "$managed")" "$original" "$action preserves broken managed binary bytes"
+    assert_eq "$(cat "$home/init.log")" "$init_log" "$action does not initialize after broken managed binary"
+  done
+
+  chmod -x "$managed"
+  for action in install check resolve; do
+    rc=0
+    run_install "$home" /bin/bash '' "$action" >"$home/output" 2>&1 || rc=$?
+    assert_failed "$rc" "$action rejects non-executable managed file"
+  done
+  rm "$managed"
+  for action in check resolve; do
+    rc=0
+    run_install "$home" /bin/bash '' "$action" >"$home/output" 2>&1 || rc=$?
+    assert_failed "$rc" "$action fails missing binary"
+  done
+}
+
+test_managed_updates() {
+  banner "managed updates validate before replacement"
+  local home managed asset dir rc original target downloads
+  home="$(mktemp -d)/home with spaces"
+  managed="$home/.local/bin/clooks"
+  make_binary "$managed" 0.2.1
+  original="$(sha256_of "$managed" | awk '{print $1}')"
+  asset="$(setup_fixture_files "$(if [[ "$(uname -s)" == Darwin ]]; then printf darwin; else printf linux; fi)")"
+  dir="$FIXTURE_ROOT/latest/download"
+
+  printf 'bad-checksum  %s\n' "$asset" >"$dir/checksums.txt"
+  rc=0
+  run_install "$home" /bin/bash "$home/.local/bin" update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "checksum failure rejects update"
+  assert_eq "$(sha256_of "$managed" | awk '{print $1}')" "$original" "checksum failure preserves prior binary bytes"
+
+  rm "$dir/$asset"
+  rc=0
+  run_install "$home" /bin/bash '' update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "download failure rejects update"
+  assert_eq "$(sha256_of "$managed" | awk '{print $1}')" "$original" "download failure preserves prior binary bytes"
+
+  make_binary "$dir/$asset" 0.3.0 9
+  (cd "$dir" && sha256_of "$asset" >checksums.txt)
+  rc=0
+  run_install "$home" /bin/bash '' update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "downloaded executable version failure rejects update"
+  assert_eq "$(sha256_of "$managed" | awk '{print $1}')" "$original" "version failure preserves prior executable"
+
+  make_binary "$dir/$asset" 0.3.0
+  (cd "$dir" && sha256_of "$asset" >checksums.txt)
+  mkdir -p "$FIXTURE_ROOT/download/v0.4.0"
+  cp "$dir/$asset" "$dir/checksums.txt" "$FIXTURE_ROOT/download/v0.4.0/"
+  rc=0
+  run_install "$home" /bin/bash '' update v0.4.0 >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "downloaded version must match explicit pin"
+  assert_eq "$(sha256_of "$managed" | awk '{print $1}')" "$original" "pin mismatch preserves prior executable"
+
+  run_install "$home" /bin/bash "$home/.local/bin" update >"$home/output" 2>&1
+  assert_eq "$?" 0 "explicit managed PATH update succeeds"
+  assert_eq "$("$managed" --version)" 0.3.0 "managed binary replaced with validated version"
+  if [[ ! -e "$home/.bashrc" ]]; then pass "update does not edit shell rc"; else fail "update edited shell rc"; fi
+  make_binary "$managed" 0.2.1 7
+  run_install "$home" /bin/bash '' update >"$home/output" 2>&1
+  assert_eq "$?" 0 "explicit update repairs broken managed executable"
+  assert_eq "$("$managed" --version)" 0.3.0 "repaired managed executable reports expected version"
+  if [[ ! -e "$home/init.log" ]]; then pass "updates never invoke init"; else fail "update invoked init"; fi
+  target="$home/external binary"
+  make_binary "$target" 0.2.1
+  original="$(sha256_of "$target")"
+  downloads="$(cat "$FIXTURE_ROOT/curl.log")"
+  rm "$managed"
+  ln -s "$target" "$managed"
+  rc=0
+  run_install "$home" /bin/bash "$home/.local/bin" update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "managed symlink update refused"
+  if [[ -L "$managed" ]]; then pass "managed symlink preserved"; else fail "managed symlink replaced"; fi
+  assert_eq "$(sha256_of "$target")" "$original" "symlink update preserves external target bytes"
+  assert_eq "$(cat "$FIXTURE_ROOT/curl.log")" "$downloads" "symlink update never downloads"
+  rm "$managed"
+  mkdir "$managed"
+  rc=0
+  run_install "$home" /bin/bash '' update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "update refuses directory destination"
+}
+
 # ---- Main -------------------------------------------------------------------
 
 printf 'install.sh test harness\n'
@@ -527,6 +743,8 @@ test_macos_bash_rule
 test_linux_bash_rule
 test_download_failure_modes
 test_unsupported_platform
+test_reuse_and_resolution
+test_managed_updates
 
 printf '\nsummary: %d passed, %d failed\n' "$PASSED" "$FAILED"
 
