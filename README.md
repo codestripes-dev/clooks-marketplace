@@ -60,7 +60,7 @@ Curated zero-config production hooks — command safety, git protection, tool hy
 | **no-rm-rf** | Blocks recursive rm against home, system dirs, and project-root escapes. Asks for within-project non-artifact deletes. Build artifacts (`node_modules`, `dist`, …) allowed. Escape via `ALLOW_DESTRUCTIVE_RM=true`. |
 | **no-destructive-git** | Blocks dangerous git ops: force push, `reset --hard`, `clean -f`, stash drop, broad `git add`, and 8 more. |
 | **no-auto-confirm** | Blocks piped auto-responses (`yes \|`, `echo y \|`, `printf 'y\n' \|`). Encourages designed non-interactive flags. |
-| **no-pasted-placeholder** | Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text #N +N lines]` placeholder — signals an unexpanded paste. |
+| **no-pasted-placeholder** | Checks `[Pasted text #N +N lines]` and `[Pasted Content N chars]` on any provider as a heuristic for unexpanded pastes; exempts prompts starting with `<task-notification>`. |
 | **prefer-builtin-tools** | Blocks bash commands that duplicate Claude Code tools (`cat`→Read, `grep`→Grep, `find`→Glob, `sed -i`→Edit, `echo >`→Write, and 4 more). |
 | **no-bare-mv** | Rewrites bare `mv` to `git mv` for tracked files; passes through for untracked. |
 | **tmux-notifications** | Sets tmux window status red on idle/permission prompts, flashes the pane, resets on activity. No-ops outside tmux. Not auto-enabled. |

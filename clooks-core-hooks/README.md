@@ -163,7 +163,9 @@ Blocks commands that pipe automatic responses (`yes`, `echo y`, `printf y`, etc.
 
 ### no-pasted-placeholder
 
-Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text #N +N lines]` placeholder. Claude Code shows that placeholder in the input box for large pastes; if it survives into the submitted prompt, the paste was not expanded and the prompt references nothing.
+Claude, Codex and legacy undefined-provider contexts check both formats, except prompts starting with `<task-notification>`, which skip to preserve completion notices.
+
+Blocks `UserPromptSubmit` on literal `[Pasted text #N +N lines]` (Claude) or `[Pasted Content N chars]` (Codex) markers. This is a heuristic for potentially unexpanded pastes, not proof that content is missing; literal examples also match.
 
 **When to enable:** Always. The cost of a blocked false positive is one re-submit; the cost of a false negative is a wasted turn responding to a literal placeholder string.
 
@@ -173,8 +175,10 @@ Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text
 
 **Patterns blocked:**
 - `[Pasted text #1 +10 lines]`, `[Pasted text #6 +1 line]`, `[Pasted text #15 +1234 lines]`
+- `[Pasted Content 123 chars]`, `[Pasted Content 123 chars] #2` (the suffix is outside the marker)
 
 **Not blocked:**
+- Prompts starting exactly with `<task-notification>`, even when either marker format appears inside.
 - The same string without brackets (e.g. quoted in a meta-discussion).
 - Variants without a `+` sign (`[Pasted text #4 7 lines]`) or with `-` (`[Pasted text #3 -5 lines]`) — neither matches the format Claude Code emits.
 
@@ -182,15 +186,17 @@ Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text
 
 ### tmux-notifications
 
-Visual tmux indicators for Claude Code session state. Sets red window status when idle, bold red with pane flash for permission/elicitation prompts, and resets on activity (new prompt, tool use, session start).
+Visual tmux indicators for supported session events. Stop colors the window status orange by default and marks it for reset on focus. New prompts, completed tool use and session start reset attention. Claude notifications retain idle and permission/elicitation feedback; flashing targets the currently focused window and restores its pane/status styles. Explicit Codex PermissionRequest applies attentionStyle and optional flashOnPrompt, then skips without deciding approval. This is an approval-request signal that may auto-resolve, not proof that a prompt was displayed. Claude and absent-provider PermissionRequest skip without duplicating notification feedback. SessionEnd restores window styles and automatic rename on both providers; Codex requires the eleven-event adapter and init refresh. No Codex idle, Interrupt, Notification or PostToolUseFailure event is synthesized.
 
-**When to enable:** When running Claude Code inside tmux and you want visual feedback about session state across multiple windows/panes. Not auto-enabled — opt in via `clooks.yml`.
+**When to enable:** When running a supported agent inside tmux and visual session feedback is useful. Select the hook through existing pack/config activation; this description does not change registration.
 
-**Config options:** None.
+**Config options:** `hookSlot: 81`, `idleColor: "red"`, `stopColor: "colour208"`, `attentionStyle: "bg=red,fg=white,bold"`, `attentionOnStop: true`, `flashOnPrompt: true`, `renameWindow: true`, and `idleIndicator: true`. Disabling attentionOnStop skips Stop coloring. idleIndicator has no effect when renameWindow is false.
 
-**Escape hatch:** The hook no-ops automatically when the `TMUX` environment variable is not set (i.e., outside tmux). The `beforeHook` calls `event.respond({ result: "skip" })` to bail out early.
+**Slot requirement:** Choose a free configured `session-window-changed[hookSlot]` index. The installer preserves other indices, not an occupied configured slot. Its server sentinel suppresses repeat installation; changing the configured slot does not migrate an already-installed binding automatically.
 
-**Note:** This hook has no test file. Testing requires a real tmux environment with `TMUX_PANE` set, which cannot be simulated in unit tests.
+**Outside tmux:** beforeHook returns skip when TMUX is absent or the pane's window cannot be resolved.
+
+**Limitations:** Existing shell interpolation and shared tmux styles are retained, not hardened by Stop portability. Test with a stub executable or isolated server; do not infer protection of other bindings at the selected index or full native event parity.
 
 ---
 
