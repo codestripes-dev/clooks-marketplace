@@ -3,7 +3,7 @@
 The official plugin marketplace for [clooks](https://clooks.cc) — a TypeScript hook runtime for AI coding agents.
 
 This repository provides setup plugins for Claude Code and Codex,
-plus curated hook packs distributed through Claude Code. Installed hooks are
+plus curated hook packs distributed through either agent. Installed hooks are
 copied locally for review; existing vendor copies are not silently updated.
 
 - **Home:** [clooks.cc](https://clooks.cc)
@@ -54,7 +54,17 @@ codex plugin add clooks@clooks-marketplace
 Then run `$clooks:setup` in Codex. Use `$clooks:setup check` to check your
 installation and `$clooks:setup update` to update it. Setup configures Codex hooks
 in your project. You can also ask it to configure both agents or user-wide hooks.
-This plugin does not install hook packs for you.
+Optional packs can be installed separately:
+
+```bash
+codex plugin add clooks-core-hooks@clooks-marketplace
+codex plugin add clooks-project-hooks@clooks-marketplace
+codex plugin add clooks-example-hooks@clooks-marketplace
+```
+
+With the runtime initialized, the next valid hook event discovers enabled packs.
+Codex installs activate packs user-wide by default; a pack's name does not select
+project scope. Review the resulting Clooks configuration and opt-in hooks.
 
 Plugin setup is tested with Codex CLI `0.154.0`; a minimum version has not been
 established. See [test coverage and limitations](https://github.com/codestripes-dev/clooks/blob/master/docs/domain/testing/codex-native.md#native-plugin-onboarding)
@@ -166,18 +176,19 @@ The onboarding `clooks/` package additionally has `.codex-plugin/plugin.json`,
 `codex-skills/` and `codex-hooks/`. The Codex catalog at
 `.agents/plugins/marketplace.json` points to that same package. Claude retains its
 own `skills/` tree; both agents use `skills/setup/scripts/install.sh`.
+The Codex catalog also lists the three data-only packs, using their existing
+`.claude-plugin/plugin.json` manifests without duplicate Codex manifests.
 
-When you install a pack through Claude Code:
+When you install a pack:
 
-1. Claude Code downloads the plugin into its plugin cache.
-2. Clooks discovers enabled packs through Claude settings and copies hooks to `.clooks/vendor/plugin/<pack-name>/` for project scope or `~/.clooks/vendor/plugin/<pack-name>/` for user scope, registering them in the matching config.
+1. Your agent downloads the plugin into its plugin cache.
+2. Clooks discovers enabled packs and copies hooks to `.clooks/vendor/plugin/<pack-name>/` for project scope or `~/.clooks/vendor/plugin/<pack-name>/` for user scope, registering them in the matching config.
 3. Commit project vendor files and configuration. Teammates reuse those copies after installing/registering the runtime and satisfying native trust; there is no `hooks.lock` yet.
-4. Updates are explicit: after refreshing the Claude plugin cache, run `clooks update plugin:<pack-name>`, then review the vendor diff and preserve any local customizations.
+4. After refreshing the plugin cache, run `clooks update plugin:<pack-name>`, then review the vendor diff and preserve any local customizations.
 
-Codex users can use compatible custom/already-vendored hooks or individual
-`clooks add` GitHub blob URLs. Repository URLs require a root `clooks-pack.json`;
-a nested `/tree/.../<pack>` URL does not select a pack in this monorepo. See the
-[runtime installation examples](https://github.com/codestripes-dev/clooks#installing-without-claude-plugins).
+For Codex, refresh the cache with `codex plugin add <pack-name>@clooks-marketplace`.
+Custom hooks and individual `clooks add` GitHub blob URLs remain supported;
+nested `/tree/.../<pack>` URLs do not select a pack in this monorepo.
 
 Plugin metadata updates do not automatically update runtime binaries or existing
 vendored hook copies. Match package and catalog release versions where declared;

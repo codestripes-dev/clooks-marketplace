@@ -80,6 +80,19 @@ edits, or native trust changes.
 
 ## Hook packs
 
-This plugin provides onboarding, not Codex plugin-pack auto-vendoring. Existing
-custom or vendored hooks remain usable. Do not offer Claude plugin installation
-as Codex pack setup or suggest nested marketplace pack URLs work with `clooks add`.
+Hook packs are optional. Setup does not authorize installing them automatically.
+Only when the user requests a pack, run its separate native install command:
+
+```bash
+codex plugin add clooks-core-hooks@clooks-marketplace
+codex plugin add clooks-project-hooks@clooks-marketplace
+codex plugin add clooks-example-hooks@clooks-marketplace
+```
+
+Install only the requested packs. With an initialized runtime, the next valid
+Codex hook event discovers enabled packs and vendors their hooks. Review the
+resulting Clooks configuration; opt-in hooks stay disabled. Native installation
+writes user activation by default, not project activation based on the pack name.
+Existing vendor copies are preserved until you run
+`clooks update plugin:<pack-name>` after refreshing the native plugin cache.
+Do not suggest nested marketplace pack URLs work with `clooks add`.

@@ -1,4 +1,4 @@
-// Clooks v0.1.2 — generated type declarations
+// Clooks v0.3.0 — generated type declarations
 // Do not edit. Regenerate with: clooks types
 type EventName = "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "SessionStart" | "SessionEnd" | "Stop" | "StopFailure" | "SubagentStop" | "SubagentStart" | "InstructionsLoaded" | "PostToolUseFailure" | "Notification" | "PermissionRequest" | "PermissionDenied" | "ConfigChange" | "WorktreeCreate" | "WorktreeRemove" | "PreCompact" | "PostCompact" | "TeammateIdle" | "TaskCreated" | "TaskCompleted";
 /** Permission mode reported on `ctx.permissionMode`. Read-only — never construct. */
@@ -129,12 +129,174 @@ export type ToolVariant<N extends string, I> = {
 export type ToolVariantWithOriginal<N extends string, I> = ToolVariant<N, I> & {
 	originalToolInput: I;
 };
-/** Opts for `event.block(...)` inside `beforeHook`. */
-export interface BlockOpts extends DebugMessage, InjectContext, Interrupt, UpdatedMcpToolOutput, SessionTitle {
-	reason: string;
+/**
+ * Per-event `block` opts for the **ctx side** (`*DecisionMethods` types in
+ * `decision-methods.ts` / `contexts.ts`). These are the wire-faithful entries —
+ * what Claude Code's wire format honors per arm. Mutations belong here because
+ * per-event handlers ARE the place to express mutations (output rewrites, session
+ * renames, etc.).
+ *
+ * Map keys are the 22 `EventName` values; values intersect only the primitives
+ * that event's wire format honors upstream. The four wire-gated primitives are:
+ *
+ * - `InjectContext` (`injectContext?: string`) — honored only on the seven
+ *   injectable events in `INJECTABLE_EVENTS` (see `src/config/constants.ts`):
+ *   `PreToolUse`, `UserPromptSubmit`, `SessionStart`, `PostToolUse`,
+ *   `PostToolUseFailure`, `Notification`, `SubagentStart`.
+ * - `Interrupt` (`interrupt?: boolean`) — `PermissionRequest.block` only.
+ * - `UpdatedMcpToolOutput` (`updatedMCPToolOutput?: unknown`) — `PostToolUse`
+ *   only (and even then silently ignored on non-MCP tools).
+ * - `SessionTitle` (`sessionTitle?: string`) — `UserPromptSubmit` only.
+ *
+ * Explicit per-event entries (matching the `EventContextMap` / `EventResultMap`
+ * style in `lifecycle.ts`) are used so misuse produces clean TS errors and
+ * the file reads straightforwardly. `extends Record<EventName, unknown>`
+ * does NOT fail the build at the map definition site if a new event is added
+ * to `EventName` without an entry here — the missing key silently inherits
+ * `unknown`. The compile error surfaces at the first consumer site that
+ * indexes the map by the new event (e.g., a `*DecisionMethods` arm or
+ * `BeforeHookEventVariants`). See `docs/CODE_QUALITY_BACKLOG.md` for the open
+ * stricter-exhaustiveness item that affects this map and the sibling event
+ * maps in `lifecycle.ts`.
+ *
+ * ## Lifecycle-vs-ctx split
+ *
+ * The lifecycle wrapper (`BeforeHookEvent.block` / `BeforeHookEvent.skip`) uses
+ * a **separate, narrower** map (`LifecycleBlockOptsMap` / `LifecycleSkipOptsMap`)
+ * that excludes mutation primitives (`UpdatedMcpToolOutput`, `SessionTitle`).
+ * Mutations belong on per-event handlers (`ctx.block(...)`), not on
+ * meta-gates. This map represents the wire-faithful per-event opts consumed by
+ * the ctx-side `*DecisionMethods` types; lifecycle uses its own narrower maps.
+ */
+export interface EventBlockOptsMap extends Record<EventName, unknown> {
+	PreToolUse: Reason & DebugMessage & InjectContext;
+	PostToolUse: Reason & DebugMessage & InjectContext & UpdatedMcpToolOutput;
+	UserPromptSubmit: Reason & DebugMessage & InjectContext & SessionTitle;
+	SessionStart: Reason & DebugMessage & InjectContext;
+	SessionEnd: Reason & DebugMessage;
+	Stop: Reason & DebugMessage;
+	StopFailure: Reason & DebugMessage;
+	SubagentStop: Reason & DebugMessage;
+	SubagentStart: Reason & DebugMessage & InjectContext;
+	InstructionsLoaded: Reason & DebugMessage;
+	PostToolUseFailure: Reason & DebugMessage & InjectContext;
+	Notification: Reason & DebugMessage & InjectContext;
+	PermissionRequest: Reason & DebugMessage & Interrupt;
+	PermissionDenied: Reason & DebugMessage;
+	ConfigChange: Reason & DebugMessage;
+	WorktreeCreate: Reason & DebugMessage;
+	WorktreeRemove: Reason & DebugMessage;
+	PreCompact: Reason & DebugMessage;
+	PostCompact: Reason & DebugMessage;
+	TeammateIdle: Reason & DebugMessage;
+	TaskCreated: Reason & DebugMessage;
+	TaskCompleted: Reason & DebugMessage;
 }
-/** Opts for `event.skip(...)` inside `beforeHook`. */
-export interface SkipOpts extends DebugMessage, InjectContext, UpdatedMcpToolOutput {
+/**
+ * Per-event `skip` opts — same gating rules as `EventBlockOptsMap` above, but
+ * the base is `DebugMessage` only (skip does not require `reason`).
+ *
+ * See `EventBlockOptsMap` for full documentation on the four wire-gated
+ * primitives and the exhaustiveness guarantee.
+ */
+export interface EventSkipOptsMap extends Record<EventName, unknown> {
+	PreToolUse: DebugMessage;
+	PostToolUse: DebugMessage & InjectContext & UpdatedMcpToolOutput;
+	UserPromptSubmit: DebugMessage & InjectContext & SessionTitle;
+	SessionStart: DebugMessage & InjectContext;
+	SessionEnd: DebugMessage;
+	Stop: DebugMessage;
+	StopFailure: DebugMessage;
+	SubagentStop: DebugMessage;
+	SubagentStart: DebugMessage & InjectContext;
+	InstructionsLoaded: DebugMessage;
+	PostToolUseFailure: DebugMessage & InjectContext;
+	Notification: DebugMessage & InjectContext;
+	PermissionRequest: DebugMessage;
+	PermissionDenied: DebugMessage;
+	ConfigChange: DebugMessage;
+	WorktreeCreate: DebugMessage;
+	WorktreeRemove: DebugMessage;
+	PreCompact: DebugMessage;
+	PostCompact: DebugMessage;
+	TeammateIdle: DebugMessage;
+	TaskCreated: DebugMessage;
+	TaskCompleted: DebugMessage;
+}
+/**
+ * Per-event `block` opts for the LIFECYCLE wrapper (`BeforeHookEvent.block`).
+ * Narrower than `EventBlockOptsMap` — **by project convention**, not by wire
+ * constraint. The wire format DOES accept `updatedMCPToolOutput` on
+ * `PostToolUse.block` and `sessionTitle` on `UserPromptSubmit.block` (the
+ * runtime translator emits them on either arm); we exclude them here because
+ * lifecycle gates are meta-decisions ("should this hook run?"), and content
+ * mutations belong on per-event handlers (`ctx.block(...)`) where the
+ * decision is co-located with the mutation. The ctx-side `EventBlockOptsMap`
+ * carries the wire-faithful primitives.
+ *
+ * Distinct from the `PreToolUse.skip` exclusion of `injectContext` (in
+ * `EventSkipOptsMap` / `LifecycleSkipOptsMap`), which is *by wire reality* —
+ * the runtime translator silently drops the field on that arm.
+ *
+ * `Interrupt` on `PermissionRequest.block` is kept here because it modifies
+ * how the block decision is delivered (control flow), not the content.
+ *
+ * Consumed by `BeforeHookEventVariants` in `src/types/lifecycle.ts`.
+ * Same exhaustiveness caveat as `EventBlockOptsMap` applies — see that map's
+ * JSDoc and `docs/CODE_QUALITY_BACKLOG.md` for the open exhaustiveness item.
+ */
+export interface LifecycleBlockOptsMap extends Record<EventName, unknown> {
+	PreToolUse: Reason & DebugMessage & InjectContext;
+	PostToolUse: Reason & DebugMessage & InjectContext;
+	UserPromptSubmit: Reason & DebugMessage & InjectContext;
+	SessionStart: Reason & DebugMessage & InjectContext;
+	SessionEnd: Reason & DebugMessage;
+	Stop: Reason & DebugMessage;
+	StopFailure: Reason & DebugMessage;
+	SubagentStop: Reason & DebugMessage;
+	SubagentStart: Reason & DebugMessage & InjectContext;
+	InstructionsLoaded: Reason & DebugMessage;
+	PostToolUseFailure: Reason & DebugMessage & InjectContext;
+	Notification: Reason & DebugMessage & InjectContext;
+	PermissionRequest: Reason & DebugMessage & Interrupt;
+	PermissionDenied: Reason & DebugMessage;
+	ConfigChange: Reason & DebugMessage;
+	WorktreeCreate: Reason & DebugMessage;
+	WorktreeRemove: Reason & DebugMessage;
+	PreCompact: Reason & DebugMessage;
+	PostCompact: Reason & DebugMessage;
+	TeammateIdle: Reason & DebugMessage;
+	TaskCreated: Reason & DebugMessage;
+	TaskCompleted: Reason & DebugMessage;
+}
+/**
+ * Per-event `skip` opts for the LIFECYCLE wrapper (`BeforeHookEvent.skip`).
+ * See `LifecycleBlockOptsMap` for full documentation on the lifecycle-vs-ctx
+ * surface split.
+ */
+export interface LifecycleSkipOptsMap extends Record<EventName, unknown> {
+	PreToolUse: DebugMessage;
+	PostToolUse: DebugMessage & InjectContext;
+	UserPromptSubmit: DebugMessage & InjectContext;
+	SessionStart: DebugMessage & InjectContext;
+	SessionEnd: DebugMessage;
+	Stop: DebugMessage;
+	StopFailure: DebugMessage;
+	SubagentStop: DebugMessage;
+	SubagentStart: DebugMessage & InjectContext;
+	InstructionsLoaded: DebugMessage;
+	PostToolUseFailure: DebugMessage & InjectContext;
+	Notification: DebugMessage & InjectContext;
+	PermissionRequest: DebugMessage;
+	PermissionDenied: DebugMessage;
+	ConfigChange: DebugMessage;
+	WorktreeCreate: DebugMessage;
+	WorktreeRemove: DebugMessage;
+	PreCompact: DebugMessage;
+	PostCompact: DebugMessage;
+	TeammateIdle: DebugMessage;
+	TaskCreated: DebugMessage;
+	TaskCompleted: DebugMessage;
 }
 type Allow<O, R> = {
 	allow: (opts?: O & DebugMessage) => R;
@@ -276,32 +438,80 @@ type OptionalKeys<T> = {
 export type Patch<T> = {
 	[K in keyof T]?: K extends OptionalKeys<T> ? T[K] | null : T[K];
 };
-type UserPromptSubmitDecisionMethods = Allow<InjectContext & SessionTitle, UserPromptSubmitResult> & Block<Reason & InjectContext & SessionTitle, UserPromptSubmitResult> & Skip<InjectContext & SessionTitle, UserPromptSubmitResult>;
-type StopDecisionMethods = Allow<DebugMessage, StopEventResult> & Block<Reason, StopEventResult> & Skip<DebugMessage, StopEventResult>;
-type SubagentStopDecisionMethods = Allow<DebugMessage, SubagentStopResult> & Block<Reason, SubagentStopResult> & Skip<DebugMessage, SubagentStopResult>;
-type ConfigChangeDecisionMethods = Allow<DebugMessage, ConfigChangeResult> & Block<Reason, ConfigChangeResult> & Skip<DebugMessage, ConfigChangeResult>;
-type PreCompactDecisionMethods = Allow<DebugMessage, PreCompactResult> & Block<Reason, PreCompactResult> & Skip<DebugMessage, PreCompactResult>;
-type PermissionDeniedDecisionMethods = Retry<DebugMessage, PermissionDeniedResult> & Skip<DebugMessage, PermissionDeniedResult>;
-type SessionStartDecisionMethods = Skip<InjectContext, SessionStartResult>;
-type SessionEndDecisionMethods = Skip<DebugMessage, SessionEndResult>;
-type InstructionsLoadedDecisionMethods = Skip<DebugMessage, InstructionsLoadedResult>;
-type NotificationDecisionMethods = Skip<InjectContext, NotificationResult>;
-type SubagentStartDecisionMethods = Skip<InjectContext, SubagentStartResult>;
-type WorktreeRemoveDecisionMethods = Skip<DebugMessage, WorktreeRemoveResult>;
-type PostCompactDecisionMethods = Skip<DebugMessage, PostCompactResult>;
+/**
+ * What a hook decided on one prior run. Every result tag a hook can return,
+ * plus `'error'` for a run that threw, rejected, timed out, or was abandoned
+ * when a parallel batch short-circuited.
+ */
+export type TurnDecision = ResultTag | "error";
+/** One completed prior run of this hook during the current turn. */
+export interface TurnRecord {
+	/** The event that run fired on. */
+	event: EventName;
+	/** What the run decided. */
+	decision: TurnDecision;
+	/** When the run completed, ISO 8601. */
+	at: string;
+}
+/**
+ * This hook's own history for the current turn — one user prompt and
+ * everything the agent does in response to it. Always present on `ctx`;
+ * empty when the engine could not read stored state.
+ *
+ * A hook only ever sees its own runs. There is no cross-hook visibility.
+ *
+ * @example
+ * // Remind exactly once per turn instead of looping.
+ * export default {
+ *   meta,
+ *   Stop(ctx) {
+ *     if (ctx.turn.priorInterventions > 0) return ctx.skip()
+ *     return ctx.block({ reason: 'Remember to lint the files you changed.' })
+ *   },
+ * } satisfies ClooksHook
+ */
+export interface TurnContext {
+	/** Every prior run of this hook this turn, across all events, oldest first. */
+	prior: TurnRecord[];
+	/** Prior runs of this hook on the *current* event only. */
+	priorRuns: number;
+	/**
+	 * Prior runs on the current event that actually intervened: a `block` on any
+	 * event, a `continue` on `TeammateIdle` / `TaskCreated` / `TaskCompleted`, or
+	 * a `retry` on `PermissionDenied`.
+	 */
+	priorInterventions: number;
+}
+type UserPromptSubmitDecisionMethods = Allow<InjectContext & SessionTitle, UserPromptSubmitResult> & Block<EventBlockOptsMap["UserPromptSubmit"], UserPromptSubmitResult> & Skip<EventSkipOptsMap["UserPromptSubmit"], UserPromptSubmitResult>;
+type StopDecisionMethods = Allow<DebugMessage, StopEventResult> & Block<EventBlockOptsMap["Stop"], StopEventResult> & Skip<EventSkipOptsMap["Stop"], StopEventResult>;
+type SubagentStopDecisionMethods = Allow<DebugMessage, SubagentStopResult> & Block<EventBlockOptsMap["SubagentStop"], SubagentStopResult> & Skip<EventSkipOptsMap["SubagentStop"], SubagentStopResult>;
+type ConfigChangeDecisionMethods = Allow<DebugMessage, ConfigChangeResult> & Block<EventBlockOptsMap["ConfigChange"], ConfigChangeResult> & Skip<EventSkipOptsMap["ConfigChange"], ConfigChangeResult>;
+type PreCompactDecisionMethods = Allow<DebugMessage, PreCompactResult> & Block<EventBlockOptsMap["PreCompact"], PreCompactResult> & Skip<EventSkipOptsMap["PreCompact"], PreCompactResult>;
+type PermissionDeniedDecisionMethods = Retry<DebugMessage, PermissionDeniedResult> & Skip<EventSkipOptsMap["PermissionDenied"], PermissionDeniedResult>;
+type SessionStartDecisionMethods = Skip<EventSkipOptsMap["SessionStart"], SessionStartResult>;
+type SessionEndDecisionMethods = Skip<EventSkipOptsMap["SessionEnd"], SessionEndResult>;
+type InstructionsLoadedDecisionMethods = Skip<EventSkipOptsMap["InstructionsLoaded"], InstructionsLoadedResult>;
+type NotificationDecisionMethods = Skip<EventSkipOptsMap["Notification"], NotificationResult>;
+type SubagentStartDecisionMethods = Skip<EventSkipOptsMap["SubagentStart"], SubagentStartResult>;
+type WorktreeRemoveDecisionMethods = Skip<EventSkipOptsMap["WorktreeRemove"], WorktreeRemoveResult>;
+type PostCompactDecisionMethods = Skip<EventSkipOptsMap["PostCompact"], PostCompactResult>;
 /**
  * Output is dropped upstream. `skip` exists for API uniformity — your handler
  * runs for side-effects (logging, alerting) only.
  */
-export type StopFailureDecisionMethods = Skip<DebugMessage, StopFailureResult>;
+export type StopFailureDecisionMethods = Skip<EventSkipOptsMap["StopFailure"], StopFailureResult>;
 type WorktreeCreateDecisionMethods = Success<Path, WorktreeCreateResult> & Failure<Reason, WorktreeCreateResult>;
-type TeammateIdleDecisionMethods = Continue<Feedback, TeammateIdleResult> & Stop<Reason, TeammateIdleResult> & Skip<DebugMessage, TeammateIdleResult>;
-type TaskCreatedDecisionMethods = Continue<Feedback, TaskCreatedResult> & Stop<Reason, TaskCreatedResult> & Skip<DebugMessage, TaskCreatedResult>;
-type TaskCompletedDecisionMethods = Continue<Feedback, TaskCompletedResult> & Stop<Reason, TaskCompletedResult> & Skip<DebugMessage, TaskCompletedResult>;
+type TeammateIdleDecisionMethods = Continue<Feedback, TeammateIdleResult> & Stop<Reason, TeammateIdleResult> & Skip<EventSkipOptsMap["TeammateIdle"], TeammateIdleResult>;
+type TaskCreatedDecisionMethods = Continue<Feedback, TaskCreatedResult> & Stop<Reason, TaskCreatedResult> & Skip<EventSkipOptsMap["TaskCreated"], TaskCreatedResult>;
+type TaskCompletedDecisionMethods = Continue<Feedback, TaskCompletedResult> & Stop<Reason, TaskCompletedResult> & Skip<EventSkipOptsMap["TaskCompleted"], TaskCompletedResult>;
+/** Upstream hook provider selected by the engine. */
+export type Provider = "claude-code" | "codex";
 /** Fields present on every context, regardless of event. */
 export interface BaseContext {
 	/** Event name. Narrow on this first inside multi-event hooks. */
 	event: EventName;
+	/** Selected adapter identity, not a tool-availability or capability guarantee. */
+	provider: Provider;
 	sessionId: string;
 	cwd: string;
 	permissionMode?: PermissionMode;
@@ -312,6 +522,11 @@ export interface BaseContext {
 	parallel: boolean;
 	/** Aborted when a parallel batch short-circuits. Pass to long-running async work. */
 	signal: AbortSignal;
+	/**
+	 * This hook's own prior runs during the current turn. Always present; empty
+	 * when the engine could not read stored turn state.
+	 */
+	turn: TurnContext;
 }
 /** Input for the `Bash` tool. */
 export interface BashToolInput {
@@ -401,7 +616,7 @@ export interface ToolInputMap {
 	Agent: AgentToolInput;
 	AskUserQuestion: AskUserQuestionToolInput;
 }
-type PreToolUseDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & Partial<Reason> & InjectContext, PreToolUseResult> & Ask<Reason & UpdatedInput<Patch<Input>> & InjectContext, PreToolUseResult> & Block<Reason & InjectContext, PreToolUseResult> & Defer<DebugMessage, PreToolUseResult> & Skip<InjectContext, PreToolUseResult>;
+type PreToolUseDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & Partial<Reason> & InjectContext, PreToolUseResult> & Ask<Reason & UpdatedInput<Patch<Input>> & InjectContext, PreToolUseResult> & Block<EventBlockOptsMap["PreToolUse"], PreToolUseResult> & Defer<DebugMessage, PreToolUseResult> & Skip<EventSkipOptsMap["PreToolUse"], PreToolUseResult>;
 /**
  * Fires before any tool call. Narrow on `ctx.toolName` for a typed
  * `ctx.toolInput` and a typed `Patch<Input>` on `updatedInput`. For tools
@@ -437,7 +652,7 @@ export type UserPromptSubmitContext = BaseContext & {
 	event: "UserPromptSubmit";
 	prompt: string;
 } & UserPromptSubmitDecisionMethods;
-type PermissionRequestDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & UpdatedPermissions, PermissionRequestResult> & Block<Reason & Interrupt, PermissionRequestResult> & Skip<DebugMessage, PermissionRequestResult>;
+type PermissionRequestDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & UpdatedPermissions, PermissionRequestResult> & Block<EventBlockOptsMap["PermissionRequest"], PermissionRequestResult> & Skip<EventSkipOptsMap["PermissionRequest"], PermissionRequestResult>;
 /**
  * Fires when Claude Code is about to prompt the user for permission. The hook
  * can answer on the user's behalf. Narrow on `ctx.toolName` for a typed
@@ -530,7 +745,7 @@ export type InstructionsLoadedContext = BaseContext & {
 	triggerFilePath?: string;
 	parentFilePath?: string;
 } & InstructionsLoadedDecisionMethods;
-type PostToolUseDecisionMethods<_Input> = Block<Reason & InjectContext & UpdatedMcpToolOutput, PostToolUseResult> & Skip<InjectContext & UpdatedMcpToolOutput, PostToolUseResult>;
+type PostToolUseDecisionMethods<_Input> = Block<EventBlockOptsMap["PostToolUse"], PostToolUseResult> & Skip<EventSkipOptsMap["PostToolUse"], PostToolUseResult>;
 /**
  * Fires after a tool call succeeds. Read `ctx.toolResponse` to inspect the
  * result. Narrow on `ctx.toolName` for a typed `ctx.toolInput`; use
@@ -555,7 +770,7 @@ export type UnknownPostToolUseContext = Prettify<BaseContext & {
 	toolUseId: string;
 	toolResponse: unknown;
 } & ToolVariant<string, Record<string, unknown>> & PostToolUseDecisionMethods<Record<string, unknown>>>;
-type PostToolUseFailureDecisionMethods<_Input> = Skip<InjectContext, PostToolUseFailureResult>;
+type PostToolUseFailureDecisionMethods<_Input> = Skip<EventSkipOptsMap["PostToolUseFailure"], PostToolUseFailureResult>;
 /**
  * Fires after a tool call errors. `ctx.error` carries the error message;
  * narrow on `ctx.toolName` for typed `ctx.toolInput`. Use
@@ -756,8 +971,8 @@ type BeforeHookEventVariants = {
 	[K in EventName]: {
 		type: K;
 		input: EventContextMap[K];
-		block(opts: BlockOpts): BlockResult;
-		skip(opts?: SkipOpts): SkipResult;
+		block(opts: LifecycleBlockOptsMap[K]): BlockResult;
+		skip(opts?: LifecycleSkipOptsMap[K]): SkipResult;
 		passthrough(opts?: LifecyclePassthroughOpts): LifecyclePassthroughResult;
 	};
 }[EventName];
