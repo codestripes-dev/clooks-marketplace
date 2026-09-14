@@ -3,11 +3,11 @@ set -euo pipefail
 
 # Clooks runtime installer — called by /clooks:setup.
 #
-# Downloads a prebuilt binary from GitHub Releases, verifies SHA-256 against
-# the release's checksums.txt, installs to $HOME/.local/bin/clooks, and
-# appends a sentinel-guarded PATH-export block to the user's shell rc.
+# Reuses an executable PATH binary first, then $HOME/.local/bin/clooks.
+# Fresh installs and explicit managed updates verify release checksums.
+# Only fresh installs append a sentinel-guarded PATH block to the shell rc.
 #
-# Usage: install.sh [install|update|check]
+# Usage: install.sh [install|update|check|resolve]
 #
 # Env:
 #   CLOOKS_VERSION   Pin a specific release tag (e.g. "1.2.3" or "v1.2.3").
@@ -19,8 +19,7 @@ REPO="codestripes-dev/clooks"
 INSTALL_DIR="$HOME/.local/bin"
 MARKER="# clooks (added by /clooks:setup)"
 
-# Test-only hook: allow the test harness to point at a local fixture server.
-# NOT user-facing; intentionally undocumented in --help / postamble output.
+# Override the release server for isolated installer tests.
 BASE_URL="${CLOOKS_INSTALL_BASE_URL:-https://github.com/${REPO}/releases}"
 
 # ---- Helpers ----------------------------------------------------------------
@@ -29,10 +28,9 @@ info() { printf 'clooks-install: %s\n' "$*"; }
 err()  { printf 'clooks-install: error: %s\n' "$*" >&2; }
 
 usage() {
-  printf 'usage: install.sh [install|update|check]\n' >&2
+  printf 'usage: install.sh [install|update|check|resolve]\n' >&2
 }
 
-# Detect OS token (darwin|linux). Exits 1 on anything else.
 detect_os() {
   local kernel
   kernel="$(uname -s)"
@@ -46,7 +44,6 @@ detect_os() {
   esac
 }
 
-# Detect arch token (arm64|x64). Exits 1 on anything else.
 detect_arch() {
   local machine
   machine="$(uname -m)"
@@ -60,7 +57,6 @@ detect_arch() {
   esac
 }
 
-# Compute SHA-256 of a file; prints the hex digest on stdout.
 sha256_of() {
   local file="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -75,21 +71,75 @@ sha256_of() {
 
 # ---- Actions ----------------------------------------------------------------
 
+# Return 2 only for absence; a broken managed installation must not be replaced
+# implicitly. type -P ignores shell functions and finds executable PATH files.
+select_binary() {
+  SELECTED_BIN="$(type -P clooks || true)"
+  SELECTED_ON_PATH=true
+  if [[ -z "$SELECTED_BIN" ]]; then
+    SELECTED_ON_PATH=false
+    SELECTED_BIN="$INSTALL_DIR/clooks"
+    if [[ ! -e "$SELECTED_BIN" && ! -L "$SELECTED_BIN" ]]; then
+      return 2
+    fi
+  fi
+  if [[ ! -f "$SELECTED_BIN" || ! -x "$SELECTED_BIN" ]]; then
+    err "not an executable binary: $SELECTED_BIN; repair it or explicitly update the managed installation"
+    return 1
+  fi
+  SELECTED_BIN="$(cd "$(dirname "$SELECTED_BIN")" && pwd -P)/$(basename "$SELECTED_BIN")"
+}
+
+validate_binary() {
+  local binary="$1" requested version_pattern
+  if ! SELECTED_VERSION="$("$binary" --version)"; then
+    err "--version failed for $binary; repair it or request an explicit update"
+    return 1
+  fi
+  version_pattern='^(clooks[[:blank:]]+)?v?([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?)$'
+  if [[ ! "$SELECTED_VERSION" =~ $version_pattern ]]; then
+    err "invalid --version output from $binary: $SELECTED_VERSION"
+    return 1
+  fi
+  SELECTED_VERSION="${BASH_REMATCH[2]}"
+  requested="${CLOOKS_VERSION:-latest}"
+  requested="${requested#v}"
+  if [[ "$requested" != latest && "$requested" != "$SELECTED_VERSION" ]]; then
+    err "requested $requested but $binary reports $SELECTED_VERSION; use explicit update, not install, to change versions"
+    return 1
+  fi
+}
+
+warn_path() {
+  if [[ "$SELECTED_ON_PATH" != true ]]; then
+    printf 'clooks-install: warning: %s is installed but unavailable on this process PATH. Correct the agent PATH and relaunch if needed; init alone does not establish hook readiness.\n' "$SELECTED_BIN" >&2
+  fi
+}
+
+do_resolve() {
+  if ! select_binary; then
+    err "cannot resolve Clooks; run explicit install or repair the selected installation"
+    return 1
+  fi
+  validate_binary "$SELECTED_BIN" || return 1
+  warn_path
+  printf '%s\n' "$SELECTED_BIN"
+}
+
 do_check() {
+  local status=0
   printf 'clooks health check\n'
   printf '===================\n'
-
-  local binpath="$INSTALL_DIR/clooks"
-  if [[ -x "$binpath" ]]; then
-    printf 'ok binary: %s\n' "$binpath"
-    printf '  version: %s\n' "$("$binpath" --version 2>/dev/null || echo unknown)"
-  elif command -v clooks >/dev/null 2>&1; then
-    local onpath
-    onpath="$(command -v clooks)"
-    printf 'ok binary: %s (on PATH)\n' "$onpath"
-    printf '  version: %s\n' "$("$onpath" --version 2>/dev/null || echo unknown)"
+  if select_binary; then
+    if validate_binary "$SELECTED_BIN"; then
+      printf 'ok binary: %s\n  version: %s\n' "$SELECTED_BIN" "$SELECTED_VERSION"
+      warn_path
+    else
+      status=1
+    fi
   else
-    printf 'MISSING binary: not found\n'
+    err "binary missing or unusable"
+    status=1
   fi
 
   if [[ -f ".clooks/clooks.yml" ]]; then
@@ -97,7 +147,42 @@ do_check() {
   else
     printf -- '-- project: no .clooks/clooks.yml\n'
   fi
-  return 0
+  return "$status"
+}
+
+do_install() {
+  local status
+  if select_binary; then
+    validate_binary "$SELECTED_BIN" || return 1
+    info "reusing $SELECTED_BIN ($SELECTED_VERSION); no download or shell profile changes"
+    warn_path
+    return 0
+  else
+    status=$?
+    if [[ "$status" != 2 ]]; then return "$status"; fi
+  fi
+  do_download true
+}
+
+do_update() {
+  local managed
+  # An external PATH selection wins even when a managed copy also exists.
+  if select_binary; then
+    if [[ -d "$INSTALL_DIR" ]]; then
+      managed="$(cd "$INSTALL_DIR" && pwd -P)/clooks"
+    else
+      managed="$INSTALL_DIR/clooks"
+    fi
+    if [[ "$SELECTED_BIN" != "$managed" ]]; then
+      err "selected external installation: $SELECTED_BIN; update through its installation method. Refusing to overwrite it or install a shadow copy"
+      return 1
+    fi
+  fi
+  if [[ -L "$INSTALL_DIR/clooks" ]]; then
+    err "managed path is a symlink; update through its installation method instead"
+    return 1
+  fi
+  do_download false
 }
 
 # Resolve the release URL prefix. Sets the global RELEASE_URL.
@@ -131,8 +216,6 @@ append_rc_block() {
     return 0
   fi
 
-  # Append blank line + marker + export. `>>` creates the file if absent,
-  # which is why `allow_create=false` short-circuits above.
   # SC2016: single quotes intentional — we want `$HOME` written as a literal
   # into the rc file so the user's shell expands it at source time.
   if ! {
@@ -146,7 +229,6 @@ append_rc_block() {
   return 0
 }
 
-# Print the manual export line to the user as a fallback.
 print_manual_export() {
   info "add this line to your shell rc to use clooks:"
   # SC2016: single quotes intentional — print the literal line for the user
@@ -165,8 +247,6 @@ warn_rc_write_failed() {
 
 # Update the user's shell rc with the sentinel block. Per-file idempotent.
 # Never fails the install; rc-edit problems downgrade to a warning.
-# Arg 1: normalized os token (darwin|linux) — passed from do_install so we
-# don't recompute `uname -s` here.
 update_path_rc() {
   local os="$1"
   local shell_basename
@@ -208,7 +288,12 @@ update_path_rc() {
   esac
 }
 
-do_install() {
+do_download() {
+  local fresh="$1"
+  if [[ -e "$INSTALL_DIR/clooks" && ! -f "$INSTALL_DIR/clooks" ]]; then
+    err "managed destination is not a regular file: $INSTALL_DIR/clooks"
+    return 1
+  fi
   if ! command -v curl >/dev/null 2>&1; then
     err "curl is required but was not found on PATH"
     exit 1
@@ -229,14 +314,16 @@ do_install() {
   # Temp files + single trap so any failure path cleans up. Because the
   # destination at $INSTALL_DIR/clooks is only written on the final mv,
   # a mid-flight failure leaves no partial binary visible to the user.
-  local tmpsum tmpbin
-  tmpsum="$(mktemp)"
-  tmpbin="$(mktemp)"
-  # shellcheck disable=SC2064 # expand tmp paths now so the trap sees them.
-  trap "rm -f '$tmpsum' '$tmpbin'" EXIT
+  mkdir -p "$INSTALL_DIR"
+  TMP_SUM=""
+  TMP_BIN=""
+  trap 'rm -f -- "$TMP_SUM" "$TMP_BIN"' EXIT
+  TMP_SUM="$(mktemp)"
+  TMP_BIN="$(mktemp "$INSTALL_DIR/.clooks-download.XXXXXX")"
+  local tmpsum="$TMP_SUM" tmpbin="$TMP_BIN"
 
-  # Fetch checksums FIRST, then the binary. This avoids a TOCTOU where the
-  # /latest/ redirect resolves to different releases between the two calls.
+  # Fetch checksums first. If /latest/ changes between requests, mismatched
+  # bytes fail verification rather than replacing the installed binary.
   info "downloading checksums..."
   if ! curl -fsSL -o "$tmpsum" "$checksums_url"; then
     err "failed to download checksums from $checksums_url"
@@ -284,34 +371,24 @@ do_install() {
 
   info "checksum verified"
 
-  # Install.
-  if ! mkdir -p "$INSTALL_DIR"; then
-    err "could not create $INSTALL_DIR"
-    exit 1
-  fi
+  # Validate before replacing the old binary. Stage on the destination filesystem
+  # so the final rename is atomic even when TMPDIR is on another filesystem.
+  chmod +x "$tmpbin"
+  validate_binary "$tmpbin"
 
-  # mv is atomic within a filesystem; across filesystems it falls back to
-  # copy+unlink. Either way the destination only appears once complete.
   if ! mv "$tmpbin" "$INSTALL_DIR/clooks"; then
     err "failed to move binary into place at $INSTALL_DIR/clooks"
     exit 1
   fi
-  chmod +x "$INSTALL_DIR/clooks"
-
-  # Clear the trap: tmpbin has been renamed, tmpsum will still be cleaned up
-  # on EXIT below (which is fine — we reset the trap to only target tmpsum).
-  # shellcheck disable=SC2064
-  trap "rm -f '$tmpsum'" EXIT
-
-  info "installed to $INSTALL_DIR/clooks"
+  info "installed $SELECTED_VERSION to $INSTALL_DIR/clooks"
 
   # Sentinel-guarded rc edit. Never fails the overall install.
-  update_path_rc "$os"
+  if [[ "$fresh" == true ]]; then update_path_rc "$os"; fi
 
-  # Postamble.
   info ""
   info "next steps:"
-  info "  - open a new terminal (or run: exec \$SHELL) to pick up PATH"
+  info "  - ensure the agent's PATH includes $INSTALL_DIR; relaunch the agent with corrected PATH if needed"
+  info "  - shell profile edits or child-shell exports do not repair the running agent's PATH"
   info "  - verify with: clooks --help"
   info "  - initialize a project: cd /your/project && clooks init"
 
@@ -322,8 +399,10 @@ do_install() {
 
 ACTION="${1:-install}"
 case "$ACTION" in
-  install|update) do_install ;;
+  install)        do_install ;;
+  update)         do_update ;;
   check)          do_check ;;
+  resolve)        do_resolve ;;
   *)
     usage
     exit 1

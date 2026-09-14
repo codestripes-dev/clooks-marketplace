@@ -2,11 +2,9 @@
 set -euo pipefail
 
 # clooks install-entrypoint: bootstrap hook (SessionStart only)
-# Checks if the clooks binary is installed. If missing, exits 0 with
-# additionalContext JSON so Claude can suggest /clooks:setup to the user.
-# This script does NOT invoke the clooks binary — it only checks existence.
+# Checks executable availability without invoking the binary or setup.
 
-# Consume stdin immediately. Claude Code pipes JSON on stdin to all hook
+# Consume stdin immediately. Agents pipe JSON on stdin to hook
 # commands. Failing to consume it risks a broken pipe signal. This script
 # does not use the stdin payload, so we discard it.
 cat >/dev/null
@@ -17,15 +15,26 @@ if [ "${SKIP_CLOOKS:-}" = "true" ]; then
 fi
 
 # Check PATH (user may have installed via Homebrew or another method).
-if command -v clooks >/dev/null 2>&1; then
+binary="$(command -v clooks || true)"
+if [ -n "$binary" ] && [ -f "$binary" ] && [ -x "$binary" ]; then
   exit 0
 fi
 
-# Binary not found. Exit 0 with JSON output:
-# - hookSpecificOutput.systemMessage: warning shown to the user in the UI
-# - hookSpecificOutput.additionalContext: injected into Claude's context
-# SessionStart ignores exit 2 (blocking errors), so we must use exit 0 + JSON.
-cat <<'JSON'
-{"hookSpecificOutput":{"hookEventName":"SessionStart","systemMessage":"[clooks] Runtime not installed. Run /clooks:setup to install it.","additionalContext":"ACTION REQUIRED: You MUST proactively inform the user about this in your very first response, regardless of what they asked. The clooks plugin is enabled but the runtime binary is not installed. Project hooks defined via clooks will not execute until it is installed. Tell the user they can run /clooks:setup to install it. Do not wait for the user to ask — mention this immediately. This notice will stop appearing once the runtime is installed."}}
+# Only fixed strings enter JSON; never interpolate paths or agent input.
+setup='/clooks:setup'
+if [ "${CLOOKS_AGENT:-}" = "codex" ]; then
+  setup='$clooks:setup'
+fi
+
+if [ -n "${HOME:-}" ] && [ -f "$HOME/.local/bin/clooks" ] && [ -x "$HOME/.local/bin/clooks" ]; then
+  message="[clooks] Clooks is installed at ~/.local/bin/clooks but unavailable on this agent's PATH. Run $setup check for details. Add ~/.local/bin to PATH and relaunch the agent if needed."
+  context="A managed runtime exists, but this agent cannot find it on PATH. Tell the user about $setup check and the PATH correction. Editing shell rc or exporting PATH in a child setup shell does not repair the running agent's environment."
+else
+  message="[clooks] No executable runtime found on PATH or at ~/.local/bin/clooks. Run $setup to set up Clooks."
+  context="Tell the user that no executable Clooks runtime was found and that they can explicitly invoke $setup to set it up."
+fi
+
+cat <<JSON
+{"systemMessage":"$message","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"$context This is a reminder only: do not run setup, install, update, initialize, or request startup consent automatically. Wait for the user to explicitly invoke setup."}}
 JSON
 exit 0

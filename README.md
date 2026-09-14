@@ -2,7 +2,8 @@
 
 The official plugin marketplace for [clooks](https://clooks.cc) — a TypeScript hook runtime for AI coding agents.
 
-This repo is a Claude Code plugin marketplace. Add it once and you can install the clooks runtime and curated hook packs with a single command per pack. Hooks are vendored into your project and pinned — no silent updates, no supply-chain surprises.
+Add this marketplace to Claude Code or Codex to install Clooks and curated hook
+packs. Hooks are vendored locally, with no silent updates.
 
 - **Home:** [clooks.cc](https://clooks.cc)
 - **Runtime:** [codestripes-dev/clooks](https://github.com/codestripes-dev/clooks)
@@ -22,17 +23,37 @@ This repo is a Claude Code plugin marketplace. Add it once and you can install t
 
 ## Quick start
 
+### Claude Code
+
 ```bash
 # 1. Add this marketplace to Claude Code
 claude plugin marketplace add codestripes-dev/clooks-marketplace
 
-# 2. Install the runtime plus the core packs
+# 2. Install the setup plugin and hook packs
 claude plugin install clooks
 claude plugin install clooks-core-hooks --scope user
 claude plugin install clooks-project-hooks --scope project
 ```
 
-Reload Claude Code. On first session start you'll be prompted to run `/clooks:setup`, which installs the `clooks` binary and initializes the project. The eight hooks in `clooks-core-hooks` activate immediately; `clooks-project-hooks` requires a few lines in `clooks.yml` before it starts enforcing rules.
+Run `/clooks:setup` in Claude Code to install Clooks and initialize your project.
+
+### Codex
+
+```bash
+codex plugin marketplace add codestripes-dev/clooks-marketplace
+codex plugin add clooks@clooks-marketplace
+```
+
+Run `$clooks:setup` in Codex to install Clooks and initialize your project.
+Then add the packs you want:
+
+```bash
+codex plugin add clooks-core-hooks@clooks-marketplace
+codex plugin add clooks-project-hooks@clooks-marketplace
+codex plugin add clooks-example-hooks@clooks-marketplace
+```
+
+Codex installs packs user-wide by default.
 
 Prefer to install clooks without plugins? See the [clooks README](https://github.com/codestripes-dev/clooks#other-install-methods) for prebuilt binaries and source builds.
 
@@ -40,19 +61,23 @@ Prefer to install clooks without plugins? See the [clooks README](https://github
 
 ### `clooks`
 
-The runtime plugin. Registers a SessionStart bootstrap hook that checks whether the `clooks` binary is installed, and ships the `/clooks:setup` skill to install it. **Install this first.**
+The runtime setup plugin. Reminds you when Clooks needs installing and includes
+the `setup` and `create-hook` skills. **Install this first.**
+
+To author a hook, use `/clooks:create-hook` in Claude Code or `$clooks:create-hook`
+in Codex.
 
 ```bash
 claude plugin install clooks
 ```
 
-Source: [`./clooks`](./clooks) · Manifest: [`plugin.json`](./clooks/.claude-plugin/plugin.json)
+Source: [`./clooks`](./clooks) · [Claude manifest](./clooks/.claude-plugin/plugin.json) · [Codex manifest](./clooks/.codex-plugin/plugin.json)
 
 ---
 
 ### `clooks-core-hooks`
 
-Curated zero-config production hooks — command safety, git protection, tool hygiene, tmux notifications. Every hook works out of the box with no per-project setup.
+Curated production hooks for command safety, git protection, tool hygiene, and tmux notifications. Most work out of the box; tmux notifications are opt-in.
 
 | Hook | What it does |
 |------|--------------|
@@ -60,8 +85,8 @@ Curated zero-config production hooks — command safety, git protection, tool hy
 | **no-rm-rf** | Blocks recursive rm against home, system dirs, and project-root escapes. Asks for within-project non-artifact deletes. Build artifacts (`node_modules`, `dist`, …) allowed. Escape via `ALLOW_DESTRUCTIVE_RM=true`. |
 | **no-destructive-git** | Blocks dangerous git ops: force push, `reset --hard`, `clean -f`, stash drop, broad `git add`, and 8 more. |
 | **no-auto-confirm** | Blocks piped auto-responses (`yes \|`, `echo y \|`, `printf 'y\n' \|`). Encourages designed non-interactive flags. |
-| **no-pasted-placeholder** | Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text #N +N lines]` placeholder — signals an unexpanded paste. |
-| **prefer-builtin-tools** | Blocks bash commands that duplicate Claude Code tools (`cat`→Read, `grep`→Grep, `find`→Glob, `sed -i`→Edit, `echo >`→Write, and 4 more). |
+| **no-pasted-placeholder** | Blocks prompts containing unexpanded paste placeholders. |
+| **prefer-builtin-tools** | Prefers the agent's built-in tools over equivalent shell commands. |
 | **no-bare-mv** | Rewrites bare `mv` to `git mv` for tracked files; passes through for untracked. |
 | **tmux-notifications** | Sets tmux window status red on idle/permission prompts, flashes the pane, resets on activity. No-ops outside tmux. Not auto-enabled. |
 
@@ -75,13 +100,13 @@ Source: [`./clooks-core-hooks`](./clooks-core-hooks) · [README](./clooks-core-h
 
 ### `clooks-project-hooks`
 
-Project-configured hooks that encode decisions only you can make. Install after committing to a package manager, identifying protected paths, or wrapping CLI tools in scripts — each hook is dormant until configured.
+Project hooks for your package manager, protected paths, and preferred scripts. Configure them in `clooks.yml`; protected paths have built-in defaults.
 
 | Hook | What it does |
 |------|--------------|
 | **js-package-manager-guard** | Blocks wrong JS/TS package managers, runners, and runtimes. Configure `allowed` in `clooks.yml`. Emits a SessionStart warning when unconfigured. |
-| **no-edit-protected** | Blocks Write/Edit/MultiEdit/NotebookEdit on protected paths (lock files, vendor dirs, minified assets). Toggle built-in groups or add custom `rules`. |
-| **prefer-project-scripts** | Blocks bare CLI invocations when project scripts exist (`eslint src/` → `bun run lint`). Configure `mappings` in `clooks.yml`. Not auto-enabled. |
+| **no-edit-protected** | Guards lock files, vendor directories, and minified assets against edits. Toggle built-in groups or add custom `rules`. |
+| **prefer-project-scripts** | Prefers equivalent project scripts over direct CLI commands. Configure `mappings` in `clooks.yml`. Not auto-enabled. |
 
 ```bash
 claude plugin install clooks-project-hooks --scope project
@@ -97,9 +122,9 @@ Educational pack for learning the clooks authoring model. Not meant for producti
 
 | Hook | What it teaches |
 |------|-----------------|
-| **debug-payload** | Environment-variable gating via `beforeHook`, multi-event handling, file logging |
-| **lifecycle-example** | `beforeHook`/`afterHook` lifecycle, config schema with defaults, branch-based gating |
-| **kitchen-sink** | One handler per event — reference for available context fields |
+| **debug-payload** | Environment-variable gating, multi-event handling, and context logging |
+| **lifecycle-example** | `beforeHook`/`afterHook` lifecycle, configurable defaults, and branch-based gating |
+| **kitchen-sink** | Reference handlers showing the context available across events |
 
 ```bash
 claude plugin install clooks-example-hooks
@@ -109,7 +134,9 @@ Source: [`./clooks-example-hooks`](./clooks-example-hooks) · [README](./clooks-
 
 ## How this marketplace works
 
-A Claude Code marketplace is just a git repo with a `.claude-plugin/marketplace.json` manifest pointing at one or more plugins. Each plugin here follows the same layout:
+Marketplace manifests point each agent to the plugins in this repository:
+`.claude-plugin/marketplace.json` for Claude Code and
+`.agents/plugins/marketplace.json` for Codex. Hook packs share this layout:
 
 ```
 <plugin-name>/
@@ -121,10 +148,12 @@ A Claude Code marketplace is just a git repo with a `.claude-plugin/marketplace.
 
 When you install a pack:
 
-1. Claude Code downloads the plugin into its plugin cache.
-2. The `clooks` runtime vendors the hooks into `.clooks/vendor/<pack-name>/` and records their SHAs in `hooks.lock`.
-3. The vendor directory and lockfile are **committed to your repo**. Your teammates clone and the same hook versions run for everyone.
-4. Updates are explicit: after `claude plugin update` refreshes the cache, run `clooks update plugin:<pack-name>` to pull the new version into your vendor directory, then review the diff before committing.
+1. Your agent downloads the plugin into its plugin cache.
+2. Clooks copies the hooks into `.clooks/vendor/plugin/<pack-name>/` (or `~/.clooks/vendor/plugin/<pack-name>/` for user-wide hooks) and registers them in `clooks.yml`.
+3. Commit project hooks and configuration so teammates use the same copies.
+4. Updates are explicit: refresh the plugin cache, run `clooks update plugin:<pack-name>`, and review the diff before committing.
+
+For Codex, refresh the cache with `codex plugin add <pack-name>@clooks-marketplace`.
 
 See the [clooks docs](https://github.com/codestripes-dev/clooks#vendoring--updates) for the full vendoring/update flow.
 

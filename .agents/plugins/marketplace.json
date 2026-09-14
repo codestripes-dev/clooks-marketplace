@@ -1,0 +1,25 @@
+{
+  "name": "clooks-marketplace",
+  "interface": { "displayName": "Clooks Marketplace" },
+  "plugins": [{
+    "name": "clooks",
+    "source": { "source": "local", "path": "./clooks" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }, {
+    "name": "clooks-core-hooks",
+    "source": { "source": "local", "path": "./clooks-core-hooks" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }, {
+    "name": "clooks-project-hooks",
+    "source": { "source": "local", "path": "./clooks-project-hooks" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }, {
+    "name": "clooks-example-hooks",
+    "source": { "source": "local", "path": "./clooks-example-hooks" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }]
+}

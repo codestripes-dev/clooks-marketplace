@@ -14,13 +14,13 @@
     },
     "no-edit-protected": {
       "path": "hooks/no-edit-protected.ts",
-      "description": "Blocks Write/Edit/MultiEdit on protected paths (lock files, vendor dirs, minified assets, and custom rules)",
+      "description": "Blocks Write/Edit/MultiEdit and Codex apply_patch on protected paths (root/nested lock files, vendor dirs, minified assets, and custom rules)",
       "events": ["PreToolUse"],
       "tags": ["guard", "safety", "files"]
     },
     "prefer-project-scripts": {
       "path": "hooks/prefer-project-scripts.ts",
-      "description": "Blocks bare CLI tools when project scripts exist. Configure mappings in clooks.yml.",
+      "description": "Prefers package scripts only when literal executable and complete arguments match; unverifiable recommendations skip. Configure mappings in clooks.yml.",
       "events": ["PreToolUse", "SessionStart"],
       "autoEnable": false
     }

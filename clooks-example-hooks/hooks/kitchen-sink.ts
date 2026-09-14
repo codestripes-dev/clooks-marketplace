@@ -1,11 +1,12 @@
-// kitchen-sink — Handler for every clooks event
+// kitchen-sink — Skip-only reference for 21 of 22 current clooks events
 //
 // Reference hook showing what context fields each event provides.
 // NOT intended for production use — install it temporarily to explore
 // the data available to your hooks, then uninstall.
 //
-// Every handler returns "skip" so the hook never interferes with
-// normal operation. Output goes to injectContext where supported,
+// Every handler returns skip without granting permission or vetoing actions.
+// WorktreeCreate is intentionally unhandled.
+// Context may contain sensitive unredacted data. Output goes to injectContext where supported,
 // debugMessage otherwise.
 
 import type { ClooksHook } from "./types"
@@ -34,7 +35,7 @@ function debugOpts(event: string, ctx: Record<string, unknown>): { debugMessage:
 export const hook: ClooksHook = {
   meta: {
     name: "kitchen-sink",
-    description: "Handler for every event — reference showing available context fields",
+    description: "Skip-only reference for 21 events; WorktreeCreate intentionally excluded",
   },
 
   beforeHook(event) {
@@ -52,7 +53,7 @@ export const hook: ClooksHook = {
   },
 
   // --- Guard events (can allow/block/skip) ---
-  PreToolUse: (ctx) => ctx.skip(injectOpts("PreToolUse", ctx as any)),
+  PreToolUse: (ctx) => ctx.skip(debugOpts("PreToolUse", ctx as any)),
   UserPromptSubmit: (ctx) => ctx.skip(injectOpts("UserPromptSubmit", ctx as any)),
   PermissionRequest: (ctx) => ctx.skip(debugOpts("PermissionRequest", ctx as any)),
   Stop: (ctx) => ctx.skip(debugOpts("Stop", ctx as any)),
@@ -70,13 +71,14 @@ export const hook: ClooksHook = {
   WorktreeRemove: (ctx) => ctx.skip(debugOpts("WorktreeRemove", ctx as any)),
   PreCompact: (ctx) => ctx.skip(debugOpts("PreCompact", ctx as any)),
 
-  // WorktreeCreate is special: its result type is SuccessResult | FailureResult
-  // (no SkipResult). We return a SuccessResult with a placeholder path.
-  WorktreeCreate: (ctx) =>
-    ctx.success({
-      path: ctx.cwd,
-      debugMessage: `[kitchen-sink] WorktreeCreate context:\n${formatContext(ctx as any)}`,
-    }),
+  // WorktreeCreate requires actual creation and success/failure, not an observation.
+  // Omit it rather than claim success with a placeholder directory.
+
+  // Debug-only events; not every provider supports every event.
+  StopFailure: (ctx) => ctx.skip(debugOpts("StopFailure", ctx as any)),
+  PermissionDenied: (ctx) => ctx.skip(debugOpts("PermissionDenied", ctx as any)),
+  PostCompact: (ctx) => ctx.skip(debugOpts("PostCompact", ctx as any)),
+  TaskCreated: (ctx) => ctx.skip(debugOpts("TaskCreated", ctx as any)),
 
   // --- Continuation events (continue/stop/skip) ---
   TeammateIdle: (ctx) =>

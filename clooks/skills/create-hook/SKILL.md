@@ -6,13 +6,13 @@ description: Author a clooks hook (TypeScript hook for the clooks runtime). Use 
 # Writing a Clooks Hook
 
 You are helping the user author a hook for the **clooks runtime** — a hook
-runtime for AI coding agents (starting with Claude Code). A hook is a
-TypeScript file under `.clooks/hooks/` that exports a `meta` object plus one or
-more event handlers. The `clooks` binary discovers and runs it on every
+runtime for Claude Code and Codex. A hook is a
+TypeScript file under `.clooks/hooks/` that exports a `hook` object containing
+`meta` and one or more event handlers. The `clooks` binary runs it on every
 matching event.
 
 This skill assumes the user has the `clooks` binary installed (if not, point
-them to `/clooks:setup` first).
+them to `/clooks:setup` in Claude Code or `$clooks:setup` in Codex first).
 
 ## What you produce
 
@@ -31,7 +31,9 @@ The hook file imports from `./types`, which only resolves when
 `.clooks/hooks/types.d.ts` is present. The runtime also needs
 `.clooks/clooks.yml`.
 
-- If `.clooks/clooks.yml` is missing, clooks may no tbe initialized yet. Your MUST inform the user about this, and recommend them to run /clooks:setup first before proceeding.
+- If the selected scope's `clooks.yml` is missing, tell the user setup is needed
+  and recommend the agent's setup skill before proceeding. Do not install or
+  initialize implicitly.
 - If `clooks.yml` is already there but `types.d.ts` is missing or stale (for
   example, after upgrading the `clooks` binary), run `clooks types` to
   refresh it. The command is idempotent. For user-wide hooks under `~/.clooks/`, append `--global` to either command.
@@ -78,8 +80,8 @@ Flags:
 - `--scope` (default `project`): `project` writes to `.clooks/hooks/`; `user`
   writes to `~/.clooks/hooks/` for user-wide hooks.
 
-The command refuses to overwrite an existing file. If it warns about a missing
-`types.d.ts` or `clooks.yml`, run `clooks types` or `clooks init` to fix.
+The command refuses to overwrite an existing file. Refresh missing types with
+`clooks types`; if configuration is missing, return to the setup check above.
 
 ### 4. Fill in the handler
 
@@ -120,7 +122,7 @@ Edit it to express the user's intent:
   ```typescript
   return ctx.skip()                              // do nothing
   return ctx.allow()                             // allow this event explicitly
-  return ctx.block({ reason: 'why' })            // block with a message to Claude
+  return ctx.block({ reason: 'why' })            // block with a message to the agent
   return ctx.ask({ reason: 'confirm?' })         // ask the user (PreToolUse only)
   return ctx.success({ path: '/abs/path' })      // WorktreeCreate
   return ctx.continue({ feedback: 'do more' })   // TeammateIdle / TaskCreated / TaskCompleted
@@ -165,7 +167,7 @@ export const hook: ClooksHook<Config> = {
 
 Before registering the hook, prove its logic works in isolation. `clooks
 test` runs a single hook handler against a synthetic event payload — no
-registration required, no live Claude session, no event capture.
+registration required, no live agent session, no event capture.
 
 Discover the JSON shape your event needs:
 
@@ -287,15 +289,16 @@ real cross-handler concern; one event handler is usually enough.
 
 ## Hook composition
 
-Multiple hooks can register for the same event. They run in registration
-order (home hooks first, then project, then local; alphabetical within each
-layer unless an `order:` list is set). The **first non-`skip` decision wins**
-the response back to the agent — later hooks still execute (for side effects
-and `debugMessage`s), but their decision is discarded.
+Multiple hooks can register for the same event. Unordered parallel hooks run
+first, followed by explicitly ordered hooks and then remaining sequential hooks
+in registration order. Sequential hooks see prior input updates.
 
-If your hook is a security guard and another hook (e.g., a logging hook)
-might block first on the same event, set explicit ordering under the event
-key in `clooks.yml`:
+PreToolUse collects votes: block wins over defer, ask, allow, and skip; the last
+vote wins ties. Other events short-circuit on block. Do not return allow from
+an observational hook just to signal that it ran; use skip.
+
+When a hook must inspect input updated by another hook, set explicit ordering
+under the event key in `clooks.yml`:
 
 ```yaml
 PreToolUse:
@@ -305,7 +308,7 @@ PreToolUse:
 Order lists are scoped to their layer — a project event order can only
 reference project-defined hooks, not home ones. When in doubt, run with
 `CLOOKS_DEBUG=true`, look at which hook's reason ends up in the engine's
-response, and add an `order:` entry if it isn't yours.
+response. Ordering does not override decision priority.
 
 ## Debugging
 
@@ -343,10 +346,11 @@ Setting this environment variable does two things:
    with `CLOOKS_LOGDIR=...`). One file per event, named by nanosecond
    timestamp.
 
-Tell the user how to enable it for a single Claude Code session:
+Enable it for a single agent session:
 
 ```bash
 CLOOKS_DEBUG=true claude
+CLOOKS_DEBUG=true codex
 ```
 
 Or persist it via their shell profile if they want it on by default. The
@@ -390,9 +394,10 @@ If a hook seems to do nothing, check in this order:
 
 ## Event-family table
 
-All 22 events grouped by family. The verbs column lists every decision method
-available on `ctx` (and on `event` inside `beforeHook`) for that event.
-Anything not listed is a type error.
+The shared type surface has 22 events grouped by family. The verbs column lists
+handler methods on `ctx`, not lifecycle methods on `beforeHook`. Agent support
+differs: the Codex skill's event and result constraints take precedence over
+this Claude-oriented reference. Consult the installed types for exact shapes.
 
 For the upstream specification of Claude Code's hook events (payload schemas,
 exit-code semantics, JSON envelope), see the official docs at

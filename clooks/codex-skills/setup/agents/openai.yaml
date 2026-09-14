@@ -1,0 +1,5 @@
+interface:
+  display_name: "Clooks Setup"
+  short_description: "Set up or check Clooks for Codex"
+policy:
+  allow_implicit_invocation: false

@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { PreToolUseContext, SessionStartContext } from './types'
 import {
   hook,
@@ -7,6 +10,7 @@ import {
   extractSegmentInfo,
   hasEscapeHatch,
   detectMatch,
+  equivalentScript,
 } from './prefer-project-scripts'
 
 // --- Helpers ---
@@ -19,7 +23,12 @@ function makeCtx(command: string, toolName = 'Bash'): PreToolUseContext {
     originalToolInput: { command },
     toolUseId: 'tu-test',
     sessionId: 'test-session',
-    cwd: '/tmp',
+    cwd: project({
+      lint: 'eslint src/',
+      format: 'prettier --write .',
+      typecheck: 'tsc --noEmit',
+      test: 'jest src/utils/',
+    }),
     permissionMode: 'default',
     transcriptPath: '/tmp/transcript.jsonl',
     allow: (opts = {}) => ({ result: 'allow', ...opts }),
@@ -180,7 +189,7 @@ describe('detectMatch', () => {
     expect(result.matched).toEqual(spaceMapping)
   })
 
-  test('naive regex that matches recommended command creates circular block (known limitation)', () => {
+  test('naive regex can select the recommended command before equivalence checking', () => {
     const circularMapping = { match: 'lint', recommend: 'npm run lint' }
     const result = detectMatch('npm run lint', [circularMapping])
     expect(result.matched).toEqual(circularMapping)
@@ -212,6 +221,9 @@ describe('hook.SessionStart', () => {
     expect(result.result).toBe('skip')
     expect(result.injectContext).toContain('prefer-project-scripts')
     expect(result.injectContext).toContain('`npm run lint`')
+    expect(result.injectContext).toContain('same executable and complete arguments')
+    expect(result.injectContext).toContain('Unverifiable recommendations')
+    expect(result.injectContext).not.toContain('The Bash tool')
   })
 })
 
@@ -262,8 +274,6 @@ describe('hook.PreToolUse — true positives', () => {
     ['bare prettier', 'prettier --write .', 'npm run format'],
     ['bare tsc', 'tsc --noEmit', 'npm run typecheck'],
     ['bare jest', 'jest src/utils/', 'npm run test'],
-    ['eslint with env var', 'VAR=val eslint src/', 'npm run lint'],
-    ['eslint in compound cmd', 'cd src && eslint .', 'npm run lint'],
   ])('blocks %s', (_label, command, expectedRecommend) => {
     const result = hook.PreToolUse!(makeCtx(command), config) as any
     expect(result.result).toBe('block')
@@ -289,6 +299,8 @@ describe('hook.PreToolUse — true negatives', () => {
     ['tool inside quotes (false-positive: echo "run eslint")', 'echo "run eslint"'],
     ['pipe target (false-positive: ps aux | eslint)', 'ps aux | eslint'],
     ['tool in comment', 'echo ok # eslint should run here'],
+    ['eslint with env var is unverifiable', 'VAR=val eslint src/'],
+    ['eslint in compound command is unverifiable', 'cd src && eslint .'],
   ])('allows %s', (_label, command) => {
     const result = hook.PreToolUse!(makeCtx(command), config)
     expect(result.result).toBe('skip')
@@ -329,15 +341,146 @@ describe('hook.PreToolUse — edge cases', () => {
     const config = { mappings: [{ match: '(?<![\\w-])eslint(?![\\w-])', recommend: 'npm run lint' }] }
     const result = hook.PreToolUse!(makeCtx('eslint src/'), config) as any
     expect(result.reason).toBe(
-      '[prefer-project-scripts] Use `npm run lint` instead — project scripts include configuration and environment that direct tool invocation misses. If the bare tool is needed, prefix with ALLOW_DIRECT_TOOL=true.'
+      '[prefer-project-scripts] Use `npm run lint` instead: its literal script matches the requested executable and complete arguments. If the bare tool is needed, prefix with ALLOW_DIRECT_TOOL=true.'
     )
     expect(result.debugMessage).toBe("prefer-project-scripts: blocked, recommending 'npm run lint'")
   })
 
-  test('whitespace-only segment in compound command is skipped', () => {
+  test('compound command remains unverified after whitespace-only segments', () => {
     const config = { mappings: [{ match: '(?<![\\w-])eslint(?![\\w-])', recommend: 'npm run lint' }] }
     const result = hook.PreToolUse!(makeCtx('  ;  ; eslint src/'), config) as any
-    expect(result.result).toBe('block')
-    expect(result.reason).toContain('npm run lint')
+    expect(result.result).toBe('skip')
+    expect(result.reason).toBeUndefined()
+    expect(result.debugMessage).toContain('equivalence unverified')
   })
+})
+
+const owned: string[] = []
+afterEach(() => {
+  for (const dir of owned.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
+function project(scripts: Record<string, unknown> = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'clooks-script-equivalence-'))
+  owned.push(dir)
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts }))
+  writeFileSync(join(dir, 'sentinel'), 'unchanged')
+  return dir
+}
+function context(cwd: string, command: string, provider: string | undefined) {
+  return {
+    cwd,
+    provider,
+    toolName: 'Bash',
+    toolInput: { command },
+    skip: (opts = {}) => ({ result: 'skip', ...opts }),
+    block: (opts = {}) => ({ result: 'block', ...opts }),
+    ask: (opts = {}) => ({ result: 'ask', ...opts }),
+    allow: () => {
+      throw new Error('Must not grant permission')
+    },
+  }
+}
+
+describe('literal script equivalence', () => {
+  test.each([
+    ['bun run lint', 'eslint src/'],
+    ['npm run lint', 'eslint src/'],
+    ['pnpm run lint', 'eslint src/'],
+    ['yarn run lint', 'eslint src/'],
+  ])('%s preserves complete arguments', (recommend, command) => {
+    expect(equivalentScript(command, recommend, project({ lint: command }))).toBe(true)
+  })
+  test.each([
+    ['ruff check src', 'ruff check src'],
+    ['spacetime publish --clear-database', 'spacetime publish --clear-database'],
+    ['tsc --noEmit', 'tsc --noEmit'],
+    ['prettier --write "file name.ts"', "prettier --write 'file name.ts'"],
+  ])('custom or quoted literal %s', (command, body) => {
+    expect(equivalentScript(command, 'bun run task', project({ task: body }))).toBe(true)
+  })
+  test.each([
+    ['prettier --check src/a.ts', 'prettier --write src/a.ts'],
+    ['prettier --check src/a.ts', "prettier --check 'src/**/*.ts'"],
+    ['eslint test/', 'eslint src/'],
+    ['eslint --fix src/', 'eslint src/'],
+    ['tsc', 'tsc --noEmit'],
+    ['spacetime publish --clear-database', 'spacetime publish'],
+    ['FOO=bar eslint src/', 'FOO=bar eslint src/'],
+    ['eslint src/ && touch sentinel', 'eslint src/ && touch sentinel'],
+    ['eslint src/\ntouch sentinel', 'eslint src/\ntouch sentinel'],
+    ['eslint $(touch sentinel)', 'eslint $(touch sentinel)'],
+    ['eslint *.ts', 'eslint *.ts'],
+    ['eslint src/ > sentinel', 'eslint src/ > sentinel'],
+    ['eslint src/ | cat', 'eslint src/ | cat'],
+    ['npx eslint src/', 'eslint src/'],
+    ['bun run nested', 'bun run nested'],
+    ['eslint ~/target', "eslint '~/target'"],
+    ["eslint '~/target'", 'eslint ~/target'],
+  ])('abstains from %s versus %s', (command, body) => {
+    const dir = project({ task: body })
+    expect(equivalentScript(command, 'bun run task', dir)).toBe(false)
+    expect(readFileSync(join(dir, 'sentinel'), 'utf8')).toBe('unchanged')
+  })
+  test.each(['pretask', 'posttask'])('abstains with %s lifecycle', (lifecycle) => {
+    expect(
+      equivalentScript(
+        'eslint src/',
+        'bun run task',
+        project({ task: 'eslint src/', [lifecycle]: '' }),
+      ),
+    ).toBe(false)
+  })
+  test.each([
+    'make lint',
+    './lint.sh',
+    'yarn task',
+    'yarn add',
+    'bun run missing',
+    'bun run task -- src/',
+    'FOO=x bun run task',
+  ])('unverifiable recommendation %s remains nonblocking', (recommend) => {
+    const dir = project({ task: 'eslint src/' })
+    expect(equivalentScript('eslint src/', recommend, dir)).toBe(false)
+  })
+  test('yarn built-in shorthand never resolves scripts.add', () => {
+    const dir = project({ add: 'eslint src/' })
+    expect(equivalentScript('eslint src/', 'yarn add', dir)).toBe(false)
+    expect(equivalentScript('eslint src/', 'yarn run add', dir)).toBe(true)
+  })
+  test('missing or malformed package data abstains', () => {
+    const dir = project()
+    for (const bytes of ['{', 'null', '{"scripts":[]}', '{"scripts":{"task":7}}']) {
+      writeFileSync(join(dir, 'package.json'), bytes)
+      expect(equivalentScript('eslint src/', 'bun run task', dir)).toBe(false)
+    }
+    rmSync(join(dir, 'package.json'))
+    expect(equivalentScript('eslint src/', 'bun run task', dir)).toBe(false)
+  })
+  for (const provider of [undefined, 'claude-code', 'codex']) {
+    test(`${provider}: verified block, debug-only skip, detection and escape compatibility`, async () => {
+      const dir = project({ lint: 'eslint src/' })
+      const config = { mappings: [{ match: 'eslint', recommend: 'bun run lint' }] }
+      const invoke = (command: string, settings = config) =>
+        hook.PreToolUse!(context(dir, command, provider) as never, settings)
+      expect((await invoke('eslint src/')).result).toBe('block')
+      for (const command of [
+        'eslint test/',
+        'echo "eslint"',
+        'cat x | eslint src/',
+        'ALLOW_DIRECT_TOOL=true eslint src/',
+        'bun run lint',
+      ]) {
+        const result = await invoke(command)
+        expect(result.result).toBe('skip')
+        expect(Object.keys(result).every((key) => ['result', 'debugMessage'].includes(key))).toBe(
+          true,
+        )
+      }
+      expect((await invoke('eslint src/', { mappings: [] })).result).toBe('skip')
+      expect(
+        (await invoke('eslint src/', { mappings: [{ match: '(', recommend: 'bun run lint' }] }))
+          .result,
+      ).toBe('skip')
+    })
+  }
 })

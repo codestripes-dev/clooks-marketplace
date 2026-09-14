@@ -8,25 +8,25 @@ For hooks that encode project-specific decisions (allowed package managers, prot
 
 ### no-compound-commands
 
-Blocks compound bash commands (`&&`, `||`, `;`) to encourage single-purpose Bash calls and use of built-in Claude tools.
+Blocks compound shell commands (`&&`, `||`, `;`) to encourage single-purpose calls. Guidance names Claude tools for Claude Code and separate shell calls or apply_patch when available for Codex; classification and escape behavior are unchanged.
 
 **When to enable:** Always. Prevents Claude from chaining fragile multi-step commands that are hard to debug and audit.
 
 **Config options:** None.
 
-**Escape hatch:** Prefix a command with `ALLOW_COMPOUND=true` to bypass the check. The hook also allows `cd <path> && <command>` as a safe pattern (single-command remainder only).
+**Escape hatch:** Prefix a command with `ALLOW_COMPOUND=true` to bypass the check. The hook also allows `cd <path> && <command>` as a safe pattern (single-command remainder only). The cd exception requires `&&`; `cd <path>; <command>` is blocked unless explicitly escaped.
 
 ---
 
 ### no-bare-mv
 
-Rewrites bare `mv` to `git mv` when `git mv` would succeed, preserving git history for renamed/moved files.
+Rewrites a standalone literal `mv` with exactly two nonempty operands and no option except optional `--` when an argv-only `git mv -n` feasibility check succeeds. Supported quotes and escapes are decoded without evaluating a shell; unsupported syntax skips without executing a check. Feasibility is not a guarantee of history preservation.
 
-**When to enable:** In any git-tracked project where you want file moves to preserve history by default.
+**When to enable:** In git-tracked projects where supported file moves should use git mv when feasible.
 
 **Config options:** None.
 
-**Escape hatch:** None needed. The hook runs a dry-run (`git mv -n`) and automatically falls back to allowing bare `mv` when `git mv` would fail (e.g., untracked files, cross-filesystem moves).
+**Escape hatch:** None. Supported invocations use a three-second argv-only dry-run, never the submitted shell command. A failed check retains the allow-with-guidance fallback; successful inspection does not execute the move. Complex commands, expansion, other options and unsupported syntax are skipped.
 
 ---
 
@@ -35,6 +35,8 @@ Rewrites bare `mv` to `git mv` when `git mv` would succeed, preserving git histo
 Blocks dangerous git operations on the Bash tool: `git reset --hard`, `git clean -f`, `git push --force`, `git stash drop`, `git commit --amend`, broad `git add -A` / `.`, and several more — 13 rules in total spanning reset, checkout, restore, clean, stash, worktree, push, branch, and hook-skipping (`--no-verify`). The block reason is tagged with the rule ID that fired so it's clear which rule triggered.
 
 **When to enable:** Always. Each rule corresponds to a concrete way an agent can lose committed work, lose uncommitted work, or rewrite shared history.
+
+Built-in checks also recognize Git global options before the operation (for example, `git -C repo reset --hard`), including quoted operands. Global help/version/path queries are skipped. Custom `additionalRules` still match the original command after the existing quote/comment sanitization, not a normalized command.
 
 **Config options:**
 
@@ -117,7 +119,7 @@ Extend via `extraAllowlist` in `clooks.yml`. Non-allowlisted within-project path
 
 Blocks bash commands that duplicate Claude Code's first-class tools: `cat`/`head`/`tail` → Read, `grep`/`rg`/`egrep`/`fgrep` → Grep, `find` → Glob, `sed -i` → Edit, `ls` → Glob, `echo`/`printf` with `>` → Write. Also refuses `sleep` outright. Stream uses (piped `grep`, `sed` without `-i`, `tail -f`) are explicitly allowed.
 
-**When to enable:** Always when working with Claude Code. Built-in tools provide structured output, permission caching, and integrate with the rest of the toolchain. The hook is a no-op for agents that don't have those tools.
+**When to enable:** Always when working with Claude Code. Built-in tools provide structured output, permission caching, and integrate with the rest of the toolchain. For explicit Codex, built-in read/search/listing restrictions are skipped; applicable sed-in-place, redirected-write and sleep rules remain, with apply_patch or available process-wait guidance. Configured additional rules and rule disables still apply. Claude and legacy undefined-provider contexts keep their existing guidance. Provider identity is not tool discovery.
 
 **Config options:**
 
@@ -135,6 +137,8 @@ Every rule is enabled by default. Set the rule ID to `false` in `clooks.yml` to 
 ---
 
 ### no-auto-confirm
+
+Supported quoted literal inputs such as `echo 'y'`, `echo "yes"`, and printf confirmation formats are inspected when piped to a command; inert quoted pipe text is not a pipeline. The bounded lexer does not evaluate shell substitutions or expansions. Unsupported nested execution, heredocs or incomplete quoting stop inspection while retaining already complete prefix pipelines. This is not a complete shell parser.
 
 Blocks commands that pipe automatic responses (`yes`, `echo y`, `printf y`, etc.) into interactive prompts. These patterns simulate human input instead of using the command's designed non-interactive interface.
 
@@ -159,7 +163,9 @@ Blocks commands that pipe automatic responses (`yes`, `echo y`, `printf y`, etc.
 
 ### no-pasted-placeholder
 
-Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text #N +N lines]` placeholder. Claude Code shows that placeholder in the input box for large pastes; if it survives into the submitted prompt, the paste was not expanded and the prompt references nothing.
+Claude, Codex and legacy undefined-provider contexts check both formats, except prompts starting with `<task-notification>`, which skip to preserve completion notices.
+
+Blocks `UserPromptSubmit` on literal `[Pasted text #N +N lines]` (Claude) or `[Pasted Content N chars]` (Codex) markers. This is a heuristic for potentially unexpanded pastes, not proof that content is missing; literal examples also match.
 
 **When to enable:** Always. The cost of a blocked false positive is one re-submit; the cost of a false negative is a wasted turn responding to a literal placeholder string.
 
@@ -169,8 +175,10 @@ Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text
 
 **Patterns blocked:**
 - `[Pasted text #1 +10 lines]`, `[Pasted text #6 +1 line]`, `[Pasted text #15 +1234 lines]`
+- `[Pasted Content 123 chars]`, `[Pasted Content 123 chars] #2` (the suffix is outside the marker)
 
 **Not blocked:**
+- Prompts starting exactly with `<task-notification>`, even when either marker format appears inside.
 - The same string without brackets (e.g. quoted in a meta-discussion).
 - Variants without a `+` sign (`[Pasted text #4 7 lines]`) or with `-` (`[Pasted text #3 -5 lines]`) — neither matches the format Claude Code emits.
 
@@ -178,15 +186,17 @@ Blocks `UserPromptSubmit` when the prompt still contains a literal `[Pasted text
 
 ### tmux-notifications
 
-Visual tmux indicators for Claude Code session state. Sets red window status when idle, bold red with pane flash for permission/elicitation prompts, and resets on activity (new prompt, tool use, session start).
+Visual tmux indicators for supported session events. Stop colors the window status orange by default and marks it for reset on focus. New prompts, completed tool use and session start reset attention. Claude notifications retain idle and permission/elicitation feedback; flashing targets the currently focused window and restores its pane/status styles. Explicit Codex PermissionRequest applies attentionStyle and optional flashOnPrompt, then skips without deciding approval. This is an approval-request signal that may auto-resolve, not proof that a prompt was displayed. Claude and absent-provider PermissionRequest skip without duplicating notification feedback. SessionEnd restores window styles and automatic rename on both providers; Codex requires the eleven-event adapter and init refresh. No Codex idle, Interrupt, Notification or PostToolUseFailure event is synthesized.
 
-**When to enable:** When running Claude Code inside tmux and you want visual feedback about session state across multiple windows/panes. Not auto-enabled — opt in via `clooks.yml`.
+**When to enable:** When running a supported agent inside tmux and visual session feedback is useful. Select the hook through existing pack/config activation; this description does not change registration.
 
-**Config options:** None.
+**Config options:** `hookSlot: 81`, `idleColor: "red"`, `stopColor: "colour208"`, `attentionStyle: "bg=red,fg=white,bold"`, `attentionOnStop: true`, `flashOnPrompt: true`, `renameWindow: true`, and `idleIndicator: true`. Disabling attentionOnStop skips Stop coloring. idleIndicator has no effect when renameWindow is false.
 
-**Escape hatch:** The hook no-ops automatically when the `TMUX` environment variable is not set (i.e., outside tmux). The `beforeHook` calls `event.respond({ result: "skip" })` to bail out early.
+**Slot requirement:** Choose a free configured `session-window-changed[hookSlot]` index. The installer preserves other indices, not an occupied configured slot. Its server sentinel suppresses repeat installation; changing the configured slot does not migrate an already-installed binding automatically.
 
-**Note:** This hook has no test file. Testing requires a real tmux environment with `TMUX_PANE` set, which cannot be simulated in unit tests.
+**Outside tmux:** beforeHook returns skip when TMUX is absent or the pane's window cannot be resolved.
+
+**Limitations:** Existing shell interpolation and shared tmux styles are retained, not hardened by Stop portability. Test with a stub executable or isolated server; do not infer protection of other bindings at the selected index or full native event parity.
 
 ---
 
