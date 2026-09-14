@@ -6,6 +6,9 @@ This repository provides setup plugins for Claude Code and Codex,
 plus curated hook packs distributed through either agent. Installed hooks are
 copied locally for review; existing vendor copies are not silently updated.
 
+Both plugins include `setup` and `create-hook`: use `/clooks:create-hook` in
+Claude Code or `$clooks:create-hook` in Codex to author, test, and register a hook.
+
 - **Home:** [clooks.cc](https://clooks.cc)
 - **Runtime:** [codestripes-dev/clooks](https://github.com/codestripes-dev/clooks)
 - **License:** MIT

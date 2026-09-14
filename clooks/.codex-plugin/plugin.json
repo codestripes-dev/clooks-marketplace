@@ -1,7 +1,7 @@
 {
   "name": "clooks",
   "version": "0.3.0",
-  "description": "Set up the Clooks hook runtime in Codex.",
+  "description": "Set up Clooks and create TypeScript hooks for your agents.",
   "author": { "name": "Joe Degler", "email": "joe@clooks.cc" },
   "homepage": "https://clooks.cc",
   "repository": "https://github.com/codestripes-dev/clooks-marketplace",
@@ -10,8 +10,8 @@
   "hooks": "./codex-hooks/hooks.json",
   "interface": {
     "displayName": "Clooks",
-    "shortDescription": "Set up the Clooks hook runtime",
-    "longDescription": "Install, update, or check Clooks and initialize Codex hooks. Plugin startup only provides a setup reminder.",
+    "shortDescription": "Set up Clooks and create hooks",
+    "longDescription": "Install, update, or check Clooks, initialize Codex hooks, and create your own TypeScript hooks. Plugin startup only provides a setup reminder.",
     "developerName": "Clooks",
     "category": "Productivity",
     "capabilities": ["Write"],
