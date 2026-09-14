@@ -19,8 +19,7 @@ REPO="codestripes-dev/clooks"
 INSTALL_DIR="$HOME/.local/bin"
 MARKER="# clooks (added by /clooks:setup)"
 
-# Test-only hook: allow the test harness to point at a local fixture server.
-# NOT user-facing; intentionally undocumented in --help / postamble output.
+# Override the release server for isolated installer tests.
 BASE_URL="${CLOOKS_INSTALL_BASE_URL:-https://github.com/${REPO}/releases}"
 
 # ---- Helpers ----------------------------------------------------------------
@@ -32,7 +31,6 @@ usage() {
   printf 'usage: install.sh [install|update|check|resolve]\n' >&2
 }
 
-# Detect OS token (darwin|linux). Exits 1 on anything else.
 detect_os() {
   local kernel
   kernel="$(uname -s)"
@@ -46,7 +44,6 @@ detect_os() {
   esac
 }
 
-# Detect arch token (arm64|x64). Exits 1 on anything else.
 detect_arch() {
   local machine
   machine="$(uname -m)"
@@ -60,7 +57,6 @@ detect_arch() {
   esac
 }
 
-# Compute SHA-256 of a file; prints the hex digest on stdout.
 sha256_of() {
   local file="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -220,8 +216,6 @@ append_rc_block() {
     return 0
   fi
 
-  # Append blank line + marker + export. `>>` creates the file if absent,
-  # which is why `allow_create=false` short-circuits above.
   # SC2016: single quotes intentional — we want `$HOME` written as a literal
   # into the rc file so the user's shell expands it at source time.
   if ! {
@@ -235,7 +229,6 @@ append_rc_block() {
   return 0
 }
 
-# Print the manual export line to the user as a fallback.
 print_manual_export() {
   info "add this line to your shell rc to use clooks:"
   # SC2016: single quotes intentional — print the literal line for the user
@@ -254,8 +247,6 @@ warn_rc_write_failed() {
 
 # Update the user's shell rc with the sentinel block. Per-file idempotent.
 # Never fails the install; rc-edit problems downgrade to a warning.
-# Arg 1: normalized os token (darwin|linux) — passed from do_install so we
-# don't recompute `uname -s` here.
 update_path_rc() {
   local os="$1"
   local shell_basename
@@ -394,7 +385,6 @@ do_download() {
   # Sentinel-guarded rc edit. Never fails the overall install.
   if [[ "$fresh" == true ]]; then update_path_rc "$os"; fi
 
-  # Postamble.
   info ""
   info "next steps:"
   info "  - ensure the agent's PATH includes $INSTALL_DIR; relaunch the agent with corrected PATH if needed"

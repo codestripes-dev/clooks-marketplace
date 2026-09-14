@@ -61,7 +61,6 @@ function run(state: State, agent?: string, skip?: string) {
     }
     if (agent !== undefined) env.CLOOKS_AGENT = agent
     if (skip !== undefined) env.SKIP_CLOOKS = skip
-    // Verify delivery first, then check that even silent branches drain stdin.
     const result = spawnSync(bash, ['--noprofile', '--norc', '-c',
       'IFS= read -r header; [ "$header" = delivered ] || exit 92; "$1" --noprofile --norc "$2"; status=$?; if IFS= read -r remaining; then exit 91; fi; exit "$status"',
       'drain-check', bash, script], {
