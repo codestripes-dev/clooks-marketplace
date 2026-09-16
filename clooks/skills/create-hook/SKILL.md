@@ -293,9 +293,11 @@ Multiple hooks can register for the same event. Unordered parallel hooks run
 first, followed by explicitly ordered hooks and then remaining sequential hooks
 in registration order. Sequential hooks see prior input updates.
 
-PreToolUse collects votes: block wins over defer, ask, allow, and skip; the last
-vote wins ties. Other events short-circuit on block. Do not return allow from
-an observational hook just to signal that it ran; use skip.
+PreToolUse collects decisions: a block wins, then defer when present, and the
+last decision wins ties. A sequential ask waits for Clooks' shared live
+confirmation; approval continues in the same invocation without replay.
+Rejection, cancellation, or unavailable required interaction blocks; skip abstains. Other events short-circuit on
+block. Do not return allow from an observational hook just to signal that it ran; use skip.
 
 When a hook must inspect input updated by another hook, set explicit ordering
 under the event key in `clooks.yml`:
@@ -409,9 +411,10 @@ clooks-specific extensions.
 ### Guard events — choose an outcome
 
 These events let your hook influence what happens next. Return `block` to
-prevent the action, `ask` to require user confirmation (PreToolUse only),
-`allow` to approve explicitly (and optionally patch input), `defer` to let
-later hooks decide, or `skip` to opt out without taking a position.
+prevent the action, `ask` to require user confirmation (PreToolUse only), or
+`allow` to approve explicitly (and optionally patch input). `defer` pauses a
+single-tool headless Claude Code turn; the caller resumes it via
+`claude -p --resume`. Codex does not support it. `skip` opts out without taking a position.
 
 | Event              | Verbs                          | Fires when                                                                                                                                                           |
 | ------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

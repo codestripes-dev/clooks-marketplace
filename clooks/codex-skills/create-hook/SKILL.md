@@ -19,9 +19,10 @@ Apply these Codex constraints when using the guide's event reference:
 - Supported events: SessionStart, SessionEnd, SubagentStart, PreToolUse,
   PermissionRequest, PostToolUse, PreCompact, PostCompact, UserPromptSubmit,
   SubagentStop, Stop. Do not scaffold Claude-only events for a Codex hook.
-- `ctx.ask({ reason })` is supported in PreToolUse handlers through Clooks'
-  approval-token fallback, not a native approval dialog. Use the helper; do not
-  implement token handling in the hook. `defer` is unsupported.
+- `ctx.ask({ reason })` works only in PreToolUse handlers through Clooks' shared
+  live confirmation. It waits before later sequential hooks continue; `skip`
+  abstains without asking, and Codex does not support `defer`. Do not return ask
+  from `beforeHook`. Approval does not override another hook's block or native policy.
 - `updatedInput` is supported only in sequential PreToolUse hooks. Bash and
   apply_patch updates can replace `command`, not timeout or other shell fields.
   PermissionRequest input updates and UserPromptSubmit title changes are unsupported.
