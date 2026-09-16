@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { PreToolUseContext } from './types'
+import type { PreToolUseContext, Provider } from './types'
 import {
   classifyPath,
   DEFAULT_ALLOWLIST,
@@ -53,9 +53,15 @@ function withConfig(overrides: Partial<Config>): Config {
   return { ...DEFAULT_CONFIG, ...overrides }
 }
 
-function makeCtx(command: unknown, toolName = 'Bash', cwd = '/tmp'): PreToolUseContext {
+function makeCtx(
+  command: unknown,
+  toolName = 'Bash',
+  cwd = '/tmp',
+  provider: Provider = 'codex',
+): PreToolUseContext {
   return {
     event: 'PreToolUse',
+    provider,
     toolName,
     toolInput: { command },
     originalToolInput: { command },
@@ -924,23 +930,27 @@ describeIfTmpOutsideGit('rule: rm-rf-project-root', () => {
   beforeAll(() => { proj = mkProject('proj-root-self') })
   afterAll(() => { rmSync(proj, { recursive: true, force: true }) })
 
-  test('asks on rm -rf . at project root', () => {
-    const result = hook.PreToolUse!(
-      makeCtx('rm -rf .', 'Bash', proj),
-      DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
-    expect(result.result).toBe('ask')
-    expect(result.reason).toContain('[rm-rf-project-root]')
-    expect(result.reason).toContain('resolves to the project root')
-  })
+  for (const provider of ['claude-code', 'codex'] as const) {
+    test(`asks on rm -rf . at project root for ${provider}`, () => {
+      const result = hook.PreToolUse!(
+        makeCtx('rm -rf .', 'Bash', proj, provider),
+        DEFAULT_CONFIG,
+      ) as { result: string; debugMessage?: string; question?: string; reason?: string }
+      expect(result.result).toBe('ask')
+      expect(result.question).toBe('Delete this project and its contents?')
+      expect(result.reason).toBe(`This deletes the entire project at ${proj}, including its Git metadata.`)
+      expect(result.debugMessage).toContain('rm-rf-project-root')
+    })
+  }
 
   test('strictMode promotes rm-rf-project-root ask → block', () => {
     const cfg = withConfig({ strictMode: true })
     const result = hook.PreToolUse!(
       makeCtx('rm -rf .', 'Bash', proj),
       cfg,
-    ) as { result: string; reason?: string }
+    ) as { result: string; question?: string; reason?: string }
     expect(result.result).toBe('block')
+    expect(result.question).toBeUndefined()
     expect(result.reason).toContain('[rm-rf-project-root]')
   })
 
@@ -948,9 +958,11 @@ describeIfTmpOutsideGit('rule: rm-rf-project-root', () => {
     const result = hook.PreToolUse!(
       makeCtx('ALLOW_DESTRUCTIVE_RM=true rm -rf .', 'Bash', proj),
       DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
+    ) as { result: string; debugMessage?: string; question?: string; reason?: string }
     expect(result.result).toBe('ask')
-    expect(result.reason).toContain('ALLOW_DESTRUCTIVE_RM=true does not bypass')
+    expect(result.question).toBe('Delete this project and its contents?')
+    expect(result.reason).toBe(`This deletes the entire project at ${proj}, including its Git metadata.`)
+    expect(result.debugMessage).toContain('rm-rf-project-root')
   })
 
   test('disabling rm-rf-project-root via config returns skip on rm -rf .', () => {
@@ -1035,24 +1047,27 @@ describeIfTmpOutsideGit('rule: rm-rf-strict', () => {
   })
   afterAll(() => { rmSync(proj, { recursive: true, force: true }) })
 
-  test('asks on rm -rf src inside project', () => {
-    const result = hook.PreToolUse!(
-      makeCtx('rm -rf src', 'Bash', proj),
-      DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
-    expect(result.result).toBe('ask')
-    expect(result.reason).toContain('[rm-rf-strict]')
-    expect(result.reason).toContain('src')
-    expect(result.reason).toContain('not in the default allowlist')
-  })
+  for (const provider of ['claude-code', 'codex'] as const) {
+    test(`asks on rm -rf src inside project for ${provider}`, () => {
+      const result = hook.PreToolUse!(
+        makeCtx('rm -rf src', 'Bash', proj, provider),
+        DEFAULT_CONFIG,
+      ) as { result: string; debugMessage?: string; question?: string; reason?: string }
+      expect(result.result).toBe('ask')
+      expect(result.question).toBe('Delete this path and its contents?')
+      expect(result.reason).toBe(`"${join(proj, 'src')}" is not on the cleanup allowlist.`)
+      expect(result.debugMessage).toContain('rm-rf-strict')
+    })
+  }
 
   test('extraAllowlist grants allow (skip) for src', () => {
     const cfg = withConfig({ extraAllowlist: ['src'] })
     const result = hook.PreToolUse!(
       makeCtx('rm -rf src', 'Bash', proj),
       cfg,
-    )
+    ) as { result: string; question?: string }
     expect(result.result).toBe('skip')
+    expect(result.question).toBeUndefined()
   })
 
   test('strictMode promotes rm-rf-strict ask → block', () => {
@@ -1060,8 +1075,9 @@ describeIfTmpOutsideGit('rule: rm-rf-strict', () => {
     const result = hook.PreToolUse!(
       makeCtx('rm -rf src', 'Bash', proj),
       cfg,
-    ) as { result: string; reason?: string }
+    ) as { result: string; question?: string; reason?: string }
     expect(result.result).toBe('block')
+    expect(result.question).toBeUndefined()
     expect(result.reason).toContain('[rm-rf-strict]')
   })
 
@@ -1069,9 +1085,11 @@ describeIfTmpOutsideGit('rule: rm-rf-strict', () => {
     const result = hook.PreToolUse!(
       makeCtx('ALLOW_DESTRUCTIVE_RM=true rm -rf src', 'Bash', proj),
       DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
+    ) as { result: string; debugMessage?: string; question?: string; reason?: string }
     expect(result.result).toBe('ask')
-    expect(result.reason).toContain('ALLOW_DESTRUCTIVE_RM=true does not bypass')
+    expect(result.question).toBe('Delete this path and its contents?')
+    expect(result.reason).toBe(`"${join(proj, 'src')}" is not on the cleanup allowlist.`)
+    expect(result.debugMessage).toContain('rm-rf-strict')
   })
 
   test('disabling rm-rf-strict via config returns skip on rm -rf src', () => {
@@ -1118,10 +1136,43 @@ describeIfTmpOutsideGit('pipeline: multi-arg mixed verdict', () => {
     const result = hook.PreToolUse!(
       makeCtx('rm -rf ~ src', 'Bash', proj),
       DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
+    ) as { result: string; question?: string; reason?: string }
     expect(result.result).toBe('block')
+    expect(result.question).toBeUndefined()
     expect(result.reason).toContain('[rm-rf-home]')
     expect(result.reason).toContain('[rm-rf-strict]')
+  })
+
+  test('multiple strict targets use a plural question and retain each target', () => {
+    mkdirSync(join(proj, 'src'), { recursive: true })
+    mkdirSync(join(proj, 'docs'), { recursive: true })
+    const result = hook.PreToolUse!(
+      makeCtx('rm -rf src docs', 'Bash', proj),
+      DEFAULT_CONFIG,
+    ) as { result: string; debugMessage?: string; question?: string; reason?: string }
+    expect(result.result).toBe('ask')
+    expect(result.question).toBe('Delete the selected paths and their contents?')
+    expect(result.reason).toBe(
+      `"${join(proj, 'src')}" is not on the cleanup allowlist.\n` +
+      `"${join(proj, 'docs')}" is not on the cleanup allowlist.`,
+    )
+    expect(result.debugMessage?.match(/rm-rf-strict/g)).toHaveLength(2)
+  })
+
+  test('project root plus another target uses the combined bounded question', () => {
+    mkdirSync(join(proj, 'src'), { recursive: true })
+    const result = hook.PreToolUse!(
+      makeCtx('rm -rf . src', 'Bash', proj),
+      DEFAULT_CONFIG,
+    ) as { result: string; debugMessage?: string; question?: string; reason?: string }
+    expect(result.result).toBe('ask')
+    expect(result.question).toBe('Delete the selected paths and their contents?')
+    expect(result.reason).toBe(
+      `This deletes the entire project at ${proj}, including its Git metadata.\n` +
+      `"${join(proj, 'src')}" is not on the cleanup allowlist.`,
+    )
+    expect(result.debugMessage).toContain('rm-rf-project-root')
+    expect(result.debugMessage).toContain('rm-rf-strict')
   })
 
   test('cd /tmp && rm -rf ~ blocks on home (per-segment split)', () => {
@@ -1207,9 +1258,10 @@ describeIfTmpOutsideGit('pipeline: glob expansion', () => {
     const result = hook.PreToolUse!(
       makeCtx('rm -rf */*', 'Bash', proj),
       DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
+    ) as { result: string; debugMessage?: string; reason?: string }
     expect(result.result).toBe('ask')
-    expect(result.reason).toContain('[rm-rf-strict]')
+    expect(result.reason).toBe(`"${join(proj, 'src', 'a.txt')}" is not on the cleanup allowlist.`)
+    expect(result.debugMessage).toContain('rm-rf-strict')
   })
 
   test('empty match set → skip (nothing to classify)', () => {
@@ -1232,9 +1284,9 @@ describeIfTmpOutsideGit('pipeline: glob expansion', () => {
     const result = hook.PreToolUse!(
       makeCtx('rm -rf *', 'Bash', proj),
       DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
+    ) as { result: string; debugMessage?: string; reason?: string }
     expect(result.result).toBe('ask')
-    expect(result.reason).toContain('[rm-rf-strict]')
+    expect(result.debugMessage).toContain('rm-rf-strict')
   })
 
   test('brace expansion {src,build}/* → ask on src', () => {
@@ -1247,9 +1299,9 @@ describeIfTmpOutsideGit('pipeline: glob expansion', () => {
     const result = hook.PreToolUse!(
       makeCtx('rm -rf {src,build}/*', 'Bash', proj),
       DEFAULT_CONFIG,
-    ) as { result: string; reason?: string }
+    ) as { result: string; debugMessage?: string; reason?: string }
     expect(result.result).toBe('ask')
-    expect(result.reason).toContain('[rm-rf-strict]')
+    expect(result.debugMessage).toContain('rm-rf-strict')
   })
 })
 
@@ -2133,15 +2185,18 @@ describeIfTmpOutsideGit('integration matrix: real pipeline, deterministic fixtur
   test.each(CASES)('$label', (c) => {
     const ctx = makeCtx(c.command, c.toolName ?? 'Bash', proj)
     const result = hook.PreToolUse!(ctx, c.config ?? DEFAULT_CONFIG) as {
+      debugMessage?: string
       result: string
       reason?: string
     }
     expect(result.result).toBe(c.expected.verdict)
     if ('rule' in c.expected) {
-      expect(result.reason ?? '').toContain(`[${c.expected.rule}]`)
+      const ruleEvidence = c.expected.verdict === 'ask' ? result.debugMessage ?? '' : result.reason ?? ''
+      expect(ruleEvidence).toContain(c.expected.verdict === 'ask' ? c.expected.rule : `[${c.expected.rule}]`)
     } else if ('rules' in c.expected) {
       for (const r of c.expected.rules) {
-        expect(result.reason ?? '').toContain(`[${r}]`)
+        const ruleEvidence = c.expected.verdict === 'ask' ? result.debugMessage ?? '' : result.reason ?? ''
+        expect(ruleEvidence).toContain(c.expected.verdict === 'ask' ? r : `[${r}]`)
       }
     }
   })
