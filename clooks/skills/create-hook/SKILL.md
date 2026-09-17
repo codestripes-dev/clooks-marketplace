@@ -50,7 +50,8 @@ If the user describes the behavior, use the family guidance:
 
 - **"block / prevent / refuse / require confirmation"** → a **guard event**
   (PreToolUse, UserPromptSubmit, PermissionRequest, Stop, SubagentStop,
-  ConfigChange, PreCompact). These can return `block`, `ask`, `allow`.
+  ConfigChange, PreCompact). These can return `block` or `allow`; only
+  PreToolUse can return `ask`.
 - **"log / observe / notify / measure"** → an **observer event** (PostToolUse,
   SessionStart, Notification, etc.). These mostly only return `skip` — the
   handler runs for side effects.
@@ -117,13 +118,18 @@ Edit it to express the user's intent:
   ```
 
 - **Return a decision** using `ctx.<verb>(...)`. See "Looking up shapes"
-  below for how to find each verb's exact arguments. The most common forms:
+  below for how to find each verb's exact arguments. For `ask`, `question` is
+  an optional short prompt; `reason` explains why approval is needed.
+  The most common forms:
 
   ```typescript
   return ctx.skip()                              // do nothing
   return ctx.allow()                             // allow this event explicitly
   return ctx.block({ reason: 'why' })            // block with a message to the agent
-  return ctx.ask({ reason: 'confirm?' })         // ask the user (PreToolUse only)
+  return ctx.ask({                               // ask the user (PreToolUse only)
+    question: 'Delete this directory?',
+    reason: 'This directory is not on the cleanup allowlist.',
+  })
   return ctx.success({ path: '/abs/path' })      // WorktreeCreate
   return ctx.continue({ feedback: 'do more' })   // TeammateIdle / TaskCreated / TaskCompleted
   ```

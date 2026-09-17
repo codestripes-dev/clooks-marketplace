@@ -18,6 +18,9 @@ Based on $ARGUMENTS:
 - If "update": run the update flow
 - If "check": run the health check flow
 
+After `init` or a binary update, tell the user to restart the agent to load the
+Clooks MCP server.
+
 ## Install flow
 
 Step 1: Run the bundled install script:
@@ -63,9 +66,10 @@ If they ARE in a project directory, initialize it:
 
 This creates the .clooks/ directory (if absent), writes a starter clooks.yml
 (if absent), and registers the project entrypoint in .claude/settings.json for
-supported Claude hook events. Successful init establishes registration, not native
-activation or PATH readiness. Report init errors and stop rather than continuing
-to a success message.
+supported Claude hook events and the Clooks MCP server used for approvals.
+Successful init establishes registration, not native activation or PATH
+readiness. Report init errors and stop rather than continuing to a success
+message.
 
 If they are NOT in a project directory (e.g., they launched Claude from ~),
 skip this step. Tell them they can run `clooks init` later from inside any

@@ -9,6 +9,9 @@ Run only after explicit user invocation of `$clooks:setup`. A startup reminder,
 plugin installation, or project task is not setup authorization. Default to
 install when no action is supplied; support install, update, and check.
 
+After `init` or a binary update, tell the user to restart the agent to load the
+Clooks MCP server.
+
 ## Locate the installer
 
 From the actual directory of this loaded `SKILL.md`, resolve
@@ -46,8 +49,9 @@ In the user's intended project, run:
 ```
 
 If launched from HOME or outside the intended project, ask for the project or
-leave init for later. Never infer global setup from launching in HOME. Init owns
-runtime registrations; do not write native hook registrations directly.
+leave init for later. Never infer global setup from launching in HOME. Init
+registers runtime hooks and the Clooks MCP server used for approvals; do not
+write registrations directly.
 
 Only for explicitly requested user-wide setup, run:
 
