@@ -42,7 +42,7 @@ is available for diagnostics, but SessionEnd diagnostics are local only.
 
 ## Input, approvals, and limitations
 
-- Use `ctx.provider` only when behavior differs between agents. Known tools stay
+- Use `ctx.agent` only when behavior differs between agents. Known tools stay
   typed: Codex `exec_command` is exposed as `Bash` with `toolInput.command`.
   `apply_patch`, MCP, and other local tools retain their native input keys, not
   Claude's Edit/Write shapes. Narrow unknown-tool input before accessing fields.
@@ -71,6 +71,6 @@ is available for diagnostics, but SessionEnd diagnostics are local only.
 - Unsupported decisions or fields are rejected, not silently ignored, even
   when a field is false or null (except PermissionRequest `interrupt: false`).
 
-Test normal, unrelated, and edge-case inputs with `provider: "codex"` in the
+Test normal, unrelated, and edge-case inputs with `agent: "codex"` in the
 normalized fixture. These tests check the handler, not native hook activation
 or whether the adapter accepts every returned field.

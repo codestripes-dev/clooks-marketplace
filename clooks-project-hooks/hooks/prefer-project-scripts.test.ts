@@ -366,10 +366,10 @@ function project(scripts: Record<string, unknown> = {}) {
   writeFileSync(join(dir, 'sentinel'), 'unchanged')
   return dir
 }
-function context(cwd: string, command: string, provider: string | undefined) {
+function context(cwd: string, command: string, agent: string | undefined) {
   return {
     cwd,
-    provider,
+    agent,
     toolName: 'Bash',
     toolInput: { command },
     skip: (opts = {}) => ({ result: 'skip', ...opts }),
@@ -456,12 +456,12 @@ describe('literal script equivalence', () => {
     rmSync(join(dir, 'package.json'))
     expect(equivalentScript('eslint src/', 'bun run task', dir)).toBe(false)
   })
-  for (const provider of [undefined, 'claude-code', 'codex']) {
-    test(`${provider}: verified block, debug-only skip, detection and escape compatibility`, async () => {
+  for (const agent of [undefined, 'claude-code', 'codex']) {
+    test(`${agent}: verified block, debug-only skip, detection and escape compatibility`, async () => {
       const dir = project({ lint: 'eslint src/' })
       const config = { mappings: [{ match: 'eslint', recommend: 'bun run lint' }] }
       const invoke = (command: string, settings = config) =>
-        hook.PreToolUse!(context(dir, command, provider) as never, settings)
+        hook.PreToolUse!(context(dir, command, agent) as never, settings)
       expect((await invoke('eslint src/')).result).toBe('block')
       for (const command of [
         'eslint test/',

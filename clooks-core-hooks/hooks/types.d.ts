@@ -510,18 +510,28 @@ type WorktreeCreateDecisionMethods = Success<Path, WorktreeCreateResult> & Failu
 type TeammateIdleDecisionMethods = Continue<Feedback, TeammateIdleResult> & Stop<Reason, TeammateIdleResult> & Skip<EventSkipOptsMap["TeammateIdle"], TeammateIdleResult>;
 type TaskCreatedDecisionMethods = Continue<Feedback, TaskCreatedResult> & Stop<Reason, TaskCreatedResult> & Skip<EventSkipOptsMap["TaskCreated"], TaskCreatedResult>;
 type TaskCompletedDecisionMethods = Continue<Feedback, TaskCompletedResult> & Stop<Reason, TaskCompletedResult> & Skip<EventSkipOptsMap["TaskCompleted"], TaskCompletedResult>;
-/** Upstream hook provider selected by the engine. */
-export type Provider = "claude-code" | "codex";
+/** Upstream coding agent selected by the engine. */
+export type AgentId = "claude-code" | "codex";
+/** Read-only helpers available on every hook and lifecycle context. */
+export interface ContextHelpers {
+	/**
+	 * True when `path` is an existing regular file under an installed plugin for
+	 * the selected agent. This is file membership, not authorization.
+	 */
+	belongsToPlugin(path: string): boolean;
+}
 /** Fields present on every context, regardless of event. */
 export interface BaseContext {
 	/** Event name. Narrow on this first inside multi-event hooks. */
 	event: EventName;
 	/** Selected adapter identity, not a tool-availability or capability guarantee. */
-	provider: Provider;
+	agent: AgentId;
+	readonly helpers: ContextHelpers;
 	sessionId: string;
 	cwd: string;
 	permissionMode?: PermissionMode;
 	transcriptPath: string;
+	/** Child subagent identity from the upstream payload; unrelated to `agent`. */
 	agentId?: string;
 	agentType?: string;
 	/** True when this hook is one of several running in parallel for the same event. */
@@ -622,15 +632,6 @@ export interface ToolInputMap {
 	Agent: AgentToolInput;
 	AskUserQuestion: AskUserQuestionToolInput;
 }
-/**
- * Verbs on `PreToolUseContext`:
- * - `allow` — proceed, optionally patching input via `updatedInput`.
- * - `ask` — request approval with an optional `question` headline and required full `reason`.
- * - `block` — refuse (`reason` is shown to the agent).
- * - `defer` — pause for `claude -p --resume`. Honored only in `-p` mode and
- *   only when the turn has a single tool call; ignored otherwise.
- * - `skip` — let other hooks (or Claude Code's defaults) decide.
- */
 type PreToolUseDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & Partial<Reason> & InjectContext, PreToolUseResult> & Ask<Reason & Question & UpdatedInput<Patch<Input>> & InjectContext, PreToolUseResult> & Block<EventBlockOptsMap["PreToolUse"], PreToolUseResult> & Defer<DebugMessage, PreToolUseResult> & Skip<EventSkipOptsMap["PreToolUse"], PreToolUseResult>;
 /**
  * Fires before any tool call. Narrow on `ctx.toolName` for a typed

@@ -49,7 +49,7 @@ Pick the right event from the event-family table at the bottom of this file.
 For Codex or cross-agent hooks, also consult the
 [Codex event and decision reference](../../codex-skills/create-hook/SKILL.md#codex-events-and-decisions).
 It lists supported events and runtime restrictions that the shared types alone
-cannot express. Keep known-tool TypeScript narrowing; use `ctx.provider` only
+cannot express. Keep known-tool TypeScript narrowing; use `ctx.agent` only
 where the behavior actually differs.
 If the user describes the behavior, use the family guidance:
 

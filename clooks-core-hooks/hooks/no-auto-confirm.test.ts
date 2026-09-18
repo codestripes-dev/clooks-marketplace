@@ -71,11 +71,11 @@ describe('bounded confirmation regressions', () => {
 })
 
 describe('hook.SessionStart', () => {
-  test.each(['claude-code', 'codex'])('announces provider-neutral guidance for %s', (provider) => {
+  test.each(['claude-code', 'codex'])('announces agent-neutral guidance for %s', (agent) => {
     const ctx = {
       ...makeCtx(''),
       event: 'SessionStart',
-      provider,
+      agent,
     } as unknown as SessionStartContext
     const result = hook.SessionStart!(ctx, DEFAULT_CONFIG) as any
     expect(result.result).toBe('skip')

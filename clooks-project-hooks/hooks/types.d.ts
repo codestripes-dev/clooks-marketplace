@@ -78,6 +78,10 @@ export type InjectContext = {
 export type Reason = {
 	reason: string;
 };
+/** Optional nonblank approval headline, preserved verbatim; maximum 512 UTF-16 code units. */
+export type Question = {
+	question?: string;
+};
 /** Sent back to the teammate as next-step instruction. */
 export type Feedback = {
 	feedback: string;
@@ -346,12 +350,11 @@ export type DeferResult = Result<"defer">;
 /** `{ result: 'retry' }` — only valid on `PermissionDenied`. Hint that the model may retry. */
 export type RetryResult = Result<"retry">;
 /**
- * `{ result: 'ask', reason }` — surface a permission prompt to the user.
- * `reason` is the prompt text. Claude Code prefixes a source label
- * ([Project] / [User] / [Plugin] / [Local]); make `reason` clearly identify
- * which hook asked.
+ * `{ result: 'ask', reason, question? }` — request live approval.
+ * `question` is an optional concise headline; without it, the complete `reason`
+ * is the opening text. `reason` always carries the full explanation.
  */
-export type AskResult = Result<"ask"> & Reason;
+export type AskResult = Result<"ask"> & Reason & Question;
 /** `{ result: 'block', reason }` — refuse the action. `reason` is shown to the agent. */
 export type BlockResult = Result<"block"> & Reason;
 /** `{ result: 'stop', reason }` — terminate the teammate. `reason` is the user-facing stop message. */
@@ -507,13 +510,13 @@ type WorktreeCreateDecisionMethods = Success<Path, WorktreeCreateResult> & Failu
 type TeammateIdleDecisionMethods = Continue<Feedback, TeammateIdleResult> & Stop<Reason, TeammateIdleResult> & Skip<EventSkipOptsMap["TeammateIdle"], TeammateIdleResult>;
 type TaskCreatedDecisionMethods = Continue<Feedback, TaskCreatedResult> & Stop<Reason, TaskCreatedResult> & Skip<EventSkipOptsMap["TaskCreated"], TaskCreatedResult>;
 type TaskCompletedDecisionMethods = Continue<Feedback, TaskCompletedResult> & Stop<Reason, TaskCompletedResult> & Skip<EventSkipOptsMap["TaskCompleted"], TaskCompletedResult>;
-/** Upstream hook provider selected by the engine. */
-export type Provider = "claude-code" | "codex";
+/** Upstream coding agent selected by the engine. */
+export type AgentId = "claude-code" | "codex";
 /** Read-only helpers available on every hook and lifecycle context. */
 export interface ContextHelpers {
 	/**
 	 * True when `path` is an existing regular file under an installed plugin for
-	 * the selected provider. This is file membership, not authorization.
+	 * the selected agent. This is file membership, not authorization.
 	 */
 	belongsToPlugin(path: string): boolean;
 }
@@ -522,12 +525,13 @@ export interface BaseContext {
 	/** Event name. Narrow on this first inside multi-event hooks. */
 	event: EventName;
 	/** Selected adapter identity, not a tool-availability or capability guarantee. */
-	provider: Provider;
+	agent: AgentId;
 	readonly helpers: ContextHelpers;
 	sessionId: string;
 	cwd: string;
 	permissionMode?: PermissionMode;
 	transcriptPath: string;
+	/** Child subagent identity from the upstream payload; unrelated to `agent`. */
 	agentId?: string;
 	agentType?: string;
 	/** True when this hook is one of several running in parallel for the same event. */
@@ -628,7 +632,7 @@ export interface ToolInputMap {
 	Agent: AgentToolInput;
 	AskUserQuestion: AskUserQuestionToolInput;
 }
-type PreToolUseDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & Partial<Reason> & InjectContext, PreToolUseResult> & Ask<Reason & UpdatedInput<Patch<Input>> & InjectContext, PreToolUseResult> & Block<EventBlockOptsMap["PreToolUse"], PreToolUseResult> & Defer<DebugMessage, PreToolUseResult> & Skip<EventSkipOptsMap["PreToolUse"], PreToolUseResult>;
+type PreToolUseDecisionMethods<Input> = Allow<UpdatedInput<Patch<Input>> & Partial<Reason> & InjectContext, PreToolUseResult> & Ask<Reason & Question & UpdatedInput<Patch<Input>> & InjectContext, PreToolUseResult> & Block<EventBlockOptsMap["PreToolUse"], PreToolUseResult> & Defer<DebugMessage, PreToolUseResult> & Skip<EventSkipOptsMap["PreToolUse"], PreToolUseResult>;
 /**
  * Fires before any tool call. Narrow on `ctx.toolName` for a typed
  * `ctx.toolInput` and a typed `Patch<Input>` on `updatedInput`. For tools

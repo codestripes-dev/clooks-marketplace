@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { PreToolUseContext, Provider } from './types'
+import type { PreToolUseContext, AgentId } from './types'
 import {
   classifyPath,
   DEFAULT_ALLOWLIST,
@@ -57,11 +57,11 @@ function makeCtx(
   command: unknown,
   toolName = 'Bash',
   cwd = '/tmp',
-  provider: Provider = 'codex',
+  agent: AgentId = 'codex',
 ): PreToolUseContext {
   return {
     event: 'PreToolUse',
-    provider,
+    agent,
     toolName,
     toolInput: { command },
     originalToolInput: { command },
@@ -930,10 +930,10 @@ describeIfTmpOutsideGit('rule: rm-rf-project-root', () => {
   beforeAll(() => { proj = mkProject('proj-root-self') })
   afterAll(() => { rmSync(proj, { recursive: true, force: true }) })
 
-  for (const provider of ['claude-code', 'codex'] as const) {
-    test(`asks on rm -rf . at project root for ${provider}`, () => {
+  for (const agent of ['claude-code', 'codex'] as const) {
+    test(`asks on rm -rf . at project root for ${agent}`, () => {
       const result = hook.PreToolUse!(
-        makeCtx('rm -rf .', 'Bash', proj, provider),
+        makeCtx('rm -rf .', 'Bash', proj, agent),
         DEFAULT_CONFIG,
       ) as { result: string; debugMessage?: string; question?: string; reason?: string }
       expect(result.result).toBe('ask')
@@ -1047,10 +1047,10 @@ describeIfTmpOutsideGit('rule: rm-rf-strict', () => {
   })
   afterAll(() => { rmSync(proj, { recursive: true, force: true }) })
 
-  for (const provider of ['claude-code', 'codex'] as const) {
-    test(`asks on rm -rf src inside project for ${provider}`, () => {
+  for (const agent of ['claude-code', 'codex'] as const) {
+    test(`asks on rm -rf src inside project for ${agent}`, () => {
       const result = hook.PreToolUse!(
-        makeCtx('rm -rf src', 'Bash', proj, provider),
+        makeCtx('rm -rf src', 'Bash', proj, agent),
         DEFAULT_CONFIG,
       ) as { result: string; debugMessage?: string; question?: string; reason?: string }
       expect(result.result).toBe('ask')

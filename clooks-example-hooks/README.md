@@ -1,6 +1,6 @@
 # clooks-example-hooks
 
-Educational hook pack for learning clooks. Contains three hooks that demonstrate lifecycle methods, typed configuration, event handling and debug tooling. The current contract has 22 events; kitchen-sink observes 21 and deliberately excludes WorktreeCreate. Provider event support differs. Install individually to explore how clooks hooks work before writing your own.
+Educational hook pack for learning clooks. Contains three hooks that demonstrate lifecycle methods, typed configuration, event handling and debug tooling. The current contract has 22 events; kitchen-sink observes 21 and deliberately excludes WorktreeCreate. Agent event support differs. Install individually to explore how clooks hooks work before writing your own.
 
 ## debug-payload
 
@@ -38,7 +38,7 @@ lifecycle-example:
 
 ## kitchen-sink
 
-Reference hook with skip-only handlers for 21 of the 22 current events, including StopFailure, PermissionDenied, PostCompact and TaskCreated. WorktreeCreate is deliberately omitted: a correct handler must actually create a worktree and return its path, not claim success with cwd. PreToolUse and the four newer handlers are debug-only; no allow, retry, continuation decision or context injection is fabricated. Six events use skip-based injection where supported: UserPromptSubmit, SessionStart, PostToolUse, PostToolUseFailure, Notification and SubagentStart. Other handlers use debug diagnostics. Provider support is not universal; Codex does not expose StopFailure, PermissionDenied or TaskCreated. StopFailure output is ignored natively; debug diagnostics do not guarantee delivery.
+Reference hook with skip-only handlers for 21 of the 22 current events, including StopFailure, PermissionDenied, PostCompact and TaskCreated. WorktreeCreate is deliberately omitted: a correct handler must actually create a worktree and return its path, not claim success with cwd. PreToolUse and the four newer handlers are debug-only; no allow, retry, continuation decision or context injection is fabricated. Six events use skip-based injection where supported: UserPromptSubmit, SessionStart, PostToolUse, PostToolUseFailure, Notification and SubagentStart. Other handlers use debug diagnostics. Agent support is not universal; Codex does not expose StopFailure, PermissionDenied or TaskCreated. StopFailure output is ignored natively; debug diagnostics do not guarantee delivery.
 
 This is normalized context, not raw native input. It is unredacted and may contain sensitive prompts, tool data and paths. Unlike debug-payload, kitchen-sink has no environment gate: enable it only temporarily. Runtime debug settings control diagnostic display, while supported context injection can still occur without debug mode.
 

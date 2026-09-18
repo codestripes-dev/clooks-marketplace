@@ -56,7 +56,7 @@ function run(state: State, agent?: string, skip?: string) {
     const before = snapshot(root)
     const env: Record<string, string> = {
       HOME: home, PATH: bin, TMPDIR: root,
-      // Deliberately present for Codex too: this must not select the provider.
+      // Deliberately present for Codex too: this must not select the agent.
       CLAUDE_PLUGIN_ROOT: join(cache, '..'),
     }
     if (agent !== undefined) env.CLOOKS_AGENT = agent

@@ -29,7 +29,7 @@ const handlers = hook as unknown as Record<string, (ctx: BaseContext, config: {}
 function context(event: string): BaseContext {
   return {
     event,
-    provider: 'codex',
+    agent: 'codex',
     sessionId: 'test-session',
     cwd: directory,
     toolName: 'Bash',

@@ -406,10 +406,10 @@ describe('hook.Stop', () => {
   })
 })
 
-describe('hook.PermissionRequest provider attention', () => {
-  test.each([undefined, 'claude-code'])('skips %s without duplicate attention', async (provider) => {
+describe('hook.PermissionRequest agent attention', () => {
+  test.each([undefined, 'claude-code'])('skips %s without duplicate attention', async (agent) => {
     setupTmuxEnv()
-    const input = provider === undefined ? ctx : { ...ctx, provider }
+    const input = agent === undefined ? ctx : { ...ctx, agent }
     expect(await hook.PermissionRequest!(input, DEFAULT_CONFIG)).toEqual({ result: 'skip' })
     expect(issuedCommands).toEqual([])
   })
@@ -423,7 +423,7 @@ describe('hook.PermissionRequest provider attention', () => {
       if (cmd.includes('show-option -gv status-style')) return 'bg=black'
       return ''
     }
-    expect(await hook.PermissionRequest!({ ...ctx, provider: 'codex' }, {
+    expect(await hook.PermissionRequest!({ ...ctx, agent: 'codex' }, {
       ...DEFAULT_CONFIG, attentionStyle: 'bg=blue,fg=yellow', flashOnPrompt,
     })).toEqual({ result: 'skip' })
     expect(issuedCommands.slice(0, 2)).toEqual([
@@ -442,9 +442,9 @@ describe('hook.PermissionRequest provider attention', () => {
     expect(issuedCommands).toEqual([])
   })
 
-  test.each([undefined, 'claude-code', 'codex'])('SessionEnd cleanup remains unchanged for %s', (provider) => {
+  test.each([undefined, 'claude-code', 'codex'])('SessionEnd cleanup remains unchanged for %s', (agent) => {
     setupTmuxEnv()
-    expect(hook.SessionEnd!({ ...ctx, provider }, DEFAULT_CONFIG)).toEqual({ result: 'skip' })
+    expect(hook.SessionEnd!({ ...ctx, agent }, DEFAULT_CONFIG)).toEqual({ result: 'skip' })
     expect(issuedCommands).toEqual([
       'tmux set-window-option -t @7 window-status-style default',
       'tmux set-window-option -t @7 -u window-status-current-style',
@@ -454,9 +454,9 @@ describe('hook.PermissionRequest provider attention', () => {
 
   test('Claude permission notification still applies attention after PermissionRequest skips', async () => {
     setupTmuxEnv()
-    await hook.PermissionRequest!({ ...ctx, provider: 'claude-code' }, DEFAULT_CONFIG)
+    await hook.PermissionRequest!({ ...ctx, agent: 'claude-code' }, DEFAULT_CONFIG)
     expect(issuedCommands).toEqual([])
-    expect(await hook.Notification!({ ...ctx, provider: 'claude-code', notificationType: 'permission_prompt' }, {
+    expect(await hook.Notification!({ ...ctx, agent: 'claude-code', notificationType: 'permission_prompt' }, {
       ...DEFAULT_CONFIG, flashOnPrompt: false,
     })).toEqual({ result: 'skip' })
     expect(issuedCommands).toHaveLength(2)
