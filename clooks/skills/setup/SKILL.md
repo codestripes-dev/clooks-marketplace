@@ -54,6 +54,12 @@ compound commands, or assume variables persist between tool calls. In subsequent
 examples, replace `/resolved/absolute/path/clooks` with the actual returned path;
 never execute the placeholder or substitute a hardcoded managed location.
 
+If an existing binary was reused, show its version and ask whether to keep it or
+update it before continuing setup. If the user chooses update, follow the update
+flow below, then resolve and verify the executable again before proceeding to
+Step 2. If they keep it, continue with that binary. An explicit `update` request
+already authorizes the update; do not ask again.
+
 Step 2: Check whether the user is in a project directory (not their home
 directory). A project directory typically contains a `.git/` directory or
 other project markers.
@@ -115,6 +121,8 @@ hooks are ready merely because install or init succeeded, or infer the agent's
 PATH from a child shell where you changed it.
 
 ## Update flow
+
+Users can request this directly with `/clooks:setup update`.
 
 Run the bundled install script with the update action:
 

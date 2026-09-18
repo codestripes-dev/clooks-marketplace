@@ -46,6 +46,11 @@ Ask the user (briefly) what the hook should do. Translate that into:
 - **Which decision** the handler should return (allow, block, ask, skip, etc.).
 
 Pick the right event from the event-family table at the bottom of this file.
+For Codex or cross-agent hooks, also consult the
+[Codex event and decision reference](../../codex-skills/create-hook/SKILL.md#codex-events-and-decisions).
+It lists supported events and runtime restrictions that the shared types alone
+cannot express. Keep known-tool TypeScript narrowing; use `ctx.provider` only
+where the behavior actually differs.
 If the user describes the behavior, use the family guidance:
 
 - **"block / prevent / refuse / require confirmation"** → a **guard event**
@@ -77,7 +82,7 @@ clooks new-hook --name <kebab-case-name> --event <EventName>
 Flags:
 
 - `--name` (required, kebab-case): e.g. `block-bad-bash`.
-- `--event` (default `PreToolUse`): one of the 22 events in the table below.
+- `--event` (default `PreToolUse`): an event from the table below supported by the target agent.
 - `--scope` (default `project`): `project` writes to `.clooks/hooks/`; `user`
   writes to `~/.clooks/hooks/` for user-wide hooks.
 
@@ -402,7 +407,7 @@ If a hook seems to do nothing, check in this order:
 
 ## Event-family table
 
-The shared type surface has 22 events grouped by family. The verbs column lists
+The shared type surface has 23 events grouped by family. The verbs column lists
 handler methods on `ctx`, not lifecycle methods on `beforeHook`. Agent support
 differs: the Codex skill's event and result constraints take precedence over
 this Claude-oriented reference. Consult the installed types for exact shapes.
@@ -445,6 +450,7 @@ not gated by your return value.
 | `PostToolUseFailure`   | skip         | After a tool call fails. Use for failure logging, alerting, or replaying a captured failure later.                                      |
 | `SessionStart`         | skip         | Session begins. Branch on `ctx.source` to differentiate `startup` / `resume` / `clear` / `compact`. Use to inject project context.      |
 | `SessionEnd`           | skip         | Session ends. Branch on `ctx.reason` (`clear`, `resume`, `logout`, `prompt_input_exit`, …). Use for session-summary writes.             |
+| `Interrupt`            | skip         | Codex only: a root turn is interrupted. Use for bounded cleanup or logging; it cannot veto cancellation or resume the turn. |
 | `InstructionsLoaded`   | skip         | A CLAUDE.md tier loads into context. `ctx.memoryType` indicates `User` / `Project` / `Local` / `Managed`. Use to audit which instruction sets are active. |
 | `Notification`         | skip         | Before Claude Code shows a notification (permission prompt, idle prompt, auth success, elicitation dialog). Use to mirror notifications to tmux, Slack, etc. |
 | `SubagentStart`        | skip         | A subagent starts. Use for subagent inventory / metrics.                                                                                |

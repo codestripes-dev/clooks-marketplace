@@ -42,6 +42,12 @@ Do not use command substitution, shell assignments or `|| exit` wrappers. Inspec
 each tool result and stop on failure. Do not replace a reused binary merely
 because a newer release exists; update is an explicit action.
 
+If an existing binary was reused, show its version and ask whether to keep it or
+update it before continuing setup. If the user chooses update, follow the update
+flow below, then resolve and verify the executable again before proceeding to
+init. If they keep it, continue with that binary. An explicit `update` request
+already authorizes the update; do not ask again.
+
 In the user's intended project, run:
 
 ```bash
@@ -70,6 +76,12 @@ explain when relaunching with corrected PATH is necessary. Never claim native
 hooks are active solely because init succeeded.
 
 ## Update and check
+
+Users can request an update directly with `$clooks:setup update`:
+
+```bash
+bash "/actual/cached/plugin/skills/setup/scripts/install.sh" update
+```
 
 For explicit update, invoke the same absolute installer path with action `update`
 in a standalone tool call. Stop on failure and follow

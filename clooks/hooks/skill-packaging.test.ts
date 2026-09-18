@@ -5,6 +5,30 @@ import { dirname, join, relative, resolve } from 'node:path'
 
 const plugin = resolve(import.meta.dir, '..')
 
+test('Codex authoring reference distinguishes event decisions and context support', () => {
+  const text = readFileSync(join(plugin, 'codex-skills/create-hook/SKILL.md'), 'utf8')
+  const rows = [...text.matchAll(/^\| `([A-Za-z]+)` \| ([^|]+) \| (yes|no) \|/gm)]
+  const events = Object.fromEntries(rows.map(([, event, decisions, context]) => [event, {
+    decisions: [...decisions!.matchAll(/`([a-z]+)`/g)].map(match => match[1]),
+    context: context === 'yes',
+  }]))
+  expect(rows).toHaveLength(12)
+  expect(events).toEqual({
+    SessionStart: { decisions: ['skip'], context: true },
+    SubagentStart: { decisions: ['skip'], context: true },
+    PreToolUse: { decisions: ['allow', 'ask', 'block', 'skip'], context: true },
+    PermissionRequest: { decisions: ['allow', 'block', 'skip'], context: false },
+    PostToolUse: { decisions: ['block', 'skip'], context: true },
+    UserPromptSubmit: { decisions: ['allow', 'block', 'skip'], context: true },
+    PreCompact: { decisions: ['allow', 'block', 'skip'], context: false },
+    PostCompact: { decisions: ['skip'], context: false },
+    SubagentStop: { decisions: ['allow', 'block', 'skip'], context: false },
+    Stop: { decisions: ['allow', 'block', 'skip'], context: false },
+    SessionEnd: { decisions: ['skip'], context: false },
+    Interrupt: { decisions: ['skip'], context: false },
+  })
+})
+
 function skills(root: string) {
   return readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())

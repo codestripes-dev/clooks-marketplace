@@ -221,13 +221,16 @@ export const hook: ClooksHook<Config> = {
     const targetTools = ['Write', 'Edit', 'MultiEdit']
     if (!nativePatch && !targetTools.includes(ctx.toolName)) return ctx.skip()
 
+    const input = raw.toolInput
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) return ctx.skip()
+
     const filePath =
-      'filePath' in ctx.toolInput && typeof ctx.toolInput.filePath === 'string'
-        ? ctx.toolInput.filePath
+      'filePath' in input && typeof input.filePath === 'string'
+        ? input.filePath
         : ''
     const paths = nativePatch
-      ? typeof raw.toolInput.command === 'string' && ctx.cwd
-        ? patchPaths(raw.toolInput.command).map((path) => resolve(ctx.cwd, path))
+      ? 'command' in input && typeof input.command === 'string' && ctx.cwd
+        ? patchPaths(input.command).map((path) => resolve(ctx.cwd, path))
         : []
       : filePath
         ? [filePath]
