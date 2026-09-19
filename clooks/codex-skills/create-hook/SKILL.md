@@ -70,6 +70,13 @@ is available for diagnostics, but SessionEnd diagnostics are local only.
   supported; let the runtime manage it instead of implementing a file protocol.
 - Unsupported decisions or fields are rejected, not silently ignored, even
   when a field is false or null (except PermissionRequest `interrupt: false`).
+- Restrict a hook to (or away from) this agent with `meta.agents: ['codex']`
+  in the hook's own source — preferred over a `ctx.agent` check when the hook
+  should not run at all under the other agent, not just behave differently.
+  A hook-specific `agents:` line in `clooks.yml` overrides `meta.agents`; a
+  global `config.agents` fallback does not, and only applies to hooks that
+  declare no allowlist of their own. An excluded hook is still imported —
+  only its handler and `beforeHook`/`afterHook` never run.
 
 Test normal, unrelated, and edge-case inputs with `agent: "codex"` in the
 normalized fixture. These tests check the handler, not native hook activation

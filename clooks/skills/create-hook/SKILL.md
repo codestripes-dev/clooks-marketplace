@@ -268,6 +268,48 @@ a later layer replaces the earlier layer's entry **atomically** (no
 per-key merge across layers). `clooks config` shows the resolved set —
 expect to see hooks from all three layers there.
 
+## Restricting a hook to an agent
+
+If a hook only makes sense under one agent — for example, a hook that tells
+the model to use Claude Code's built-in Grep tool — set `agents` in `meta`
+rather than adding a bail-out check inside the handler:
+
+```typescript
+export const hook: ClooksHook<Config> = {
+  meta: {
+    name: 'prefer-claude-grep',
+    agents: ['claude-code'],
+    config: {},
+  },
+  SessionStart(ctx) { /* ... */ },
+}
+```
+
+The hook still loads under every agent — this is a runtime allowlist, not a
+build-time exclusion — but the engine never calls its handlers (or
+`beforeHook`/`afterHook`) when the invoking agent is not in the list. No
+`ctx.agent` check needed inside the handler.
+
+Use `ctx.agent === 'codex'` branching instead when the hook should run under
+every agent but its *behavior* merely differs per agent — that's the more
+common case, and what most of the built-in hook packs do (see
+`prefer-builtin-tools.ts`, `no-compound-commands.ts` in `clooks-core-hooks`).
+`meta.agents` is for "this hook should not run at all under agent X";
+`ctx.agent` branching is for "this hook runs everywhere but does something
+different there."
+
+A `clooks.yml` entry can override the author's `agents` per hook, or per hook
+and event, without touching the hook's source:
+
+```yaml
+prefer-claude-grep:
+  agents: ["claude-code", "codex"]   # user override — replaces meta.agents entirely
+```
+
+A hook-specific `agents:` line in `clooks.yml` always wins over `meta.agents`
+for that hook; a global `config.agents` fallback never does — it only applies
+to hooks that declare no allowlist of their own.
+
 ## Lifecycle hooks (optional)
 
 For cross-cutting behavior across multiple event handlers in the same file
