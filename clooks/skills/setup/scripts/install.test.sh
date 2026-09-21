@@ -731,6 +731,58 @@ test_managed_updates() {
   assert_failed "$rc" "update refuses directory destination"
 }
 
+test_home_bin_updates() {
+  banner "PATH-selected home bin updates"
+  local home bin managed asset dir rc original downloads target profile
+  home="$(mktemp -d)/home with spaces"
+  bin="$home/bin/clooks"
+  managed="$home/.local/bin/clooks"
+  profile="$home/.bashrc"
+  make_binary "$bin" 0.2.1
+  make_binary "$managed" 0.1.0
+  printf '# preserve profile\n' >"$profile"
+  asset="$(setup_fixture_files "$(if [[ "$(uname -s)" == Darwin ]]; then printf darwin; else printf linux; fi)")"
+  dir="$FIXTURE_ROOT/latest/download"
+
+  original="$(sha256_of "$managed")"
+  rc=0
+  run_install "$home" /bin/bash "$home/bin" update >"$home/output" 2>&1 || rc=$?
+  assert_eq "$rc" 0 "home bin update succeeds"
+  assert_eq "$("$bin" --version)" "clooks 0.0.0" "home bin receives downloaded binary"
+  assert_eq "$(sha256_of "$managed")" "$original" "secondary managed binary remains untouched"
+  assert_eq "$(cat "$profile")" "# preserve profile" "home bin update leaves shell rc unchanged"
+  assert_eq "$(run_install "$home" /bin/bash "$home/bin" resolve 2>"$home/errors")" "$bin" "resolve returns home bin path"
+
+  local home2
+  home2="$(mktemp -d)/home with spaces"
+  make_binary "$home2/bin/clooks" 0.2.1
+  rm -f "$home2/.local/bin/clooks"
+  rc=0
+  run_install "$home2" /bin/bash "$home2/bin" update >"$home2/output" 2>&1 || rc=$?
+  assert_eq "$rc" 0 "home bin-only update succeeds"
+  if [[ ! -e "$home2/.local" ]]; then pass "home bin-only update creates no managed directory"; else fail "home bin-only update created managed directory"; fi
+
+  target="$(mktemp -d)/external-clooks"
+  make_binary "$target" 0.2.1
+  rm -f "$bin"
+  ln -s "$target" "$bin"
+  downloads="$(cat "$FIXTURE_ROOT/curl.log")"
+  rc=0
+  run_install "$home" /bin/bash "$home/bin" update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "home bin symlink update is refused"
+  assert_eq "$(cat "$FIXTURE_ROOT/curl.log")" "$downloads" "home bin symlink refusal occurs before download"
+
+  rm "$bin"
+  make_binary "$bin" 0.2.1
+  original="$(sha256_of "$bin")"
+  printf 'bad-checksum  %s\n' "$asset" >"$dir/checksums.txt"
+  rc=0
+  run_install "$home" /bin/bash "$home/bin" update >"$home/output" 2>&1 || rc=$?
+  assert_failed "$rc" "home bin checksum failure rejects update"
+  assert_eq "$(sha256_of "$bin")" "$original" "home bin checksum failure preserves binary"
+  (cd "$dir" && sha256_of "$asset" >checksums.txt)
+}
+
 # ---- Main -------------------------------------------------------------------
 
 printf 'install.sh test harness\n'
@@ -745,6 +797,7 @@ test_download_failure_modes
 test_unsupported_platform
 test_reuse_and_resolution
 test_managed_updates
+test_home_bin_updates
 
 printf '\nsummary: %d passed, %d failed\n' "$PASSED" "$FAILED"
 

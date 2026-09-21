@@ -4,7 +4,7 @@ set -euo pipefail
 # Clooks runtime installer — called by /clooks:setup.
 #
 # Reuses an executable PATH binary first, then $HOME/.local/bin/clooks.
-# Fresh installs and explicit managed updates verify release checksums.
+# Fresh installs and explicit supported updates verify release checksums.
 # Only fresh installs append a sentinel-guarded PATH block to the shell rc.
 #
 # Usage: install.sh [install|update|check|resolve]
@@ -165,24 +165,39 @@ do_install() {
 }
 
 do_update() {
-  local managed
+  local managed_dir standalone_dir selected_dir status target_dir
   # An external PATH selection wins even when a managed copy also exists.
   if select_binary; then
     if [[ -d "$INSTALL_DIR" ]]; then
-      managed="$(cd "$INSTALL_DIR" && pwd -P)/clooks"
+      managed_dir="$(cd "$INSTALL_DIR" && pwd -P)"
     else
-      managed="$INSTALL_DIR/clooks"
+      managed_dir="$INSTALL_DIR"
     fi
-    if [[ "$SELECTED_BIN" != "$managed" ]]; then
+    if [[ -d "$HOME/bin" ]]; then
+      standalone_dir="$(cd "$HOME/bin" && pwd -P)"
+    else
+      standalone_dir="$HOME/bin"
+    fi
+    if [[ -L "$SELECTED_BIN" ]]; then
+      err "selected path is a symlink: $SELECTED_BIN; update through its installation method instead"
+      return 1
+    fi
+    if [[ -d "$(dirname "$SELECTED_BIN")" ]]; then
+      selected_dir="$(cd "$(dirname "$SELECTED_BIN")" && pwd -P)"
+    else
+      selected_dir="$(dirname "$SELECTED_BIN")"
+    fi
+    if [[ "$selected_dir" != "$managed_dir" && "$selected_dir" != "$standalone_dir" ]]; then
       err "selected external installation: $SELECTED_BIN; update through its installation method. Refusing to overwrite it or install a shadow copy"
       return 1
     fi
+    target_dir="$selected_dir"
+  else
+    status=$?
+    if [[ "$status" != 2 ]]; then return "$status"; fi
+    target_dir="$INSTALL_DIR"
   fi
-  if [[ -L "$INSTALL_DIR/clooks" ]]; then
-    err "managed path is a symlink; update through its installation method instead"
-    return 1
-  fi
-  do_download false
+  do_download false "$target_dir"
 }
 
 # Resolve the release URL prefix. Sets the global RELEASE_URL.
@@ -290,8 +305,10 @@ update_path_rc() {
 
 do_download() {
   local fresh="$1"
-  if [[ -e "$INSTALL_DIR/clooks" && ! -f "$INSTALL_DIR/clooks" ]]; then
-    err "managed destination is not a regular file: $INSTALL_DIR/clooks"
+  local target_dir="${2:-$INSTALL_DIR}"
+  local target="$target_dir/clooks"
+  if [[ -e "$target" && ! -f "$target" ]]; then
+    err "destination is not a regular file: $target"
     return 1
   fi
   if ! command -v curl >/dev/null 2>&1; then
@@ -312,14 +329,14 @@ do_download() {
   info "source: ${RELEASE_URL}"
 
   # Temp files + single trap so any failure path cleans up. Because the
-  # destination at $INSTALL_DIR/clooks is only written on the final mv,
+  # destination is only written on the final mv,
   # a mid-flight failure leaves no partial binary visible to the user.
-  mkdir -p "$INSTALL_DIR"
+  mkdir -p "$target_dir"
   TMP_SUM=""
   TMP_BIN=""
   trap 'rm -f -- "$TMP_SUM" "$TMP_BIN"' EXIT
   TMP_SUM="$(mktemp)"
-  TMP_BIN="$(mktemp "$INSTALL_DIR/.clooks-download.XXXXXX")"
+  TMP_BIN="$(mktemp "$target_dir/.clooks-download.XXXXXX")"
   local tmpsum="$TMP_SUM" tmpbin="$TMP_BIN"
 
   # Fetch checksums first. If /latest/ changes between requests, mismatched
@@ -376,18 +393,18 @@ do_download() {
   chmod +x "$tmpbin"
   validate_binary "$tmpbin"
 
-  if ! mv "$tmpbin" "$INSTALL_DIR/clooks"; then
-    err "failed to move binary into place at $INSTALL_DIR/clooks"
+  if ! mv "$tmpbin" "$target"; then
+    err "failed to move binary into place at $target"
     exit 1
   fi
-  info "installed $SELECTED_VERSION to $INSTALL_DIR/clooks"
+  info "installed $SELECTED_VERSION to $target"
 
   # Sentinel-guarded rc edit. Never fails the overall install.
   if [[ "$fresh" == true ]]; then update_path_rc "$os"; fi
 
   info ""
   info "next steps:"
-  info "  - ensure the agent's PATH includes $INSTALL_DIR; relaunch the agent with corrected PATH if needed"
+  info "  - ensure the agent's PATH includes $target_dir; relaunch the agent with corrected PATH if needed"
   info "  - shell profile edits or child-shell exports do not repair the running agent's PATH"
   info "  - verify with: clooks --help"
   info "  - initialize a project: cd /your/project && clooks init"
