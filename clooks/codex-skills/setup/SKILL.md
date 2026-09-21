@@ -97,9 +97,12 @@ operation. Require one successful JSON envelope and inspect `data.scopes`;
 
 A scope is repairable only when `needsIntegrationRefresh` is true and `repair`
 is non-null. Execute the selected repair with its exact executable and args, in
-its exact cwd, with its env entries applied as overrides. Do not narrow agents,
-drop `CODEX_HOME`, or reconstruct the command. Failed inspection,
-uninspectable scopes, and null repairs stop integration changes.
+its exact cwd, with its env entries applied as overrides; empty env inherits the
+environment. Use tool workdir/env or a one-call cd/env prefix, not persistent
+shell assignments. Do not narrow agents, drop `CODEX_HOME`, or reconstruct the
+command. A null repair means do not repair that scope: skip current/absent scopes.
+Failed inspection or an ambiguous/uninspectable selected scope requires reporting
+the problem and stopping changes.
 
 ## Update and check
 
@@ -110,29 +113,32 @@ support before integration maintenance.
 Run the binary update substep at most once per request; if it already ran, the
 binary-update intent is satisfied.
 
-Fresh inspection selects a current project needing a binary update or safe
-integration repair by default. An explicit project path takes precedence;
-inspect there and warn instead of initializing an absent or ambiguous project.
+Fresh inspection selects both existing current-project and global installations
+for a generic update, with no extra confirmation for existing global scope.
+Explicit project-only or global-only requests limit repairs to that scope;
+explicit binary-only requests never run init. An explicit project path limits
+integration repair to that project; inspect there and verify the reported root
+matches the intended root before repair. Warn instead of initializing an absent
+or ambiguous project. Never initialize absent scopes or add agents.
 
-- Integration-only with a compatible binary: skip download and run the exact
-  repair.
-- Binary-only or both: run the binary update substep, re-inspect, then run only
-  a fresh safe repair still required by the selected scope.
+- Integration-only with a compatible binary: skip download and refresh every
+  selected scope needing a safe exact repair, preserving its existing agents.
+- Any selected scope requires a binary update: run the binary update substep,
+  then re-inspect before any integration repair.
 - Explicit binary/latest request: update the binary even when integration is
-  compatible, then re-inspect.
-- Only global integration is stale: if global was not already explicitly
-  selected, ask one scope question. If declined, report its exact repair and
-  stop without changes. Refresh only after global/all-scope confirmation; `all`
-  means all installation scopes, not `--agent all`.
-- Otherwise, with no actionable stale project, retain the normal binary-update
-  intent.
+  compatible, then re-inspect; binary-only still prohibits init.
+- With no actionable maintenance in the selected scopes, retain the normal
+  binary-update intent.
 
 After every binary update, re-run the capability probe and inspection. Stop if
-the selected scope still needs a binary update or becomes uncertain. After an
-integration repair, run the same read-only inspection again and report any
-remaining problem. Report other stale global scopes without changing them. No
-current project means no project init. Never add agents, initialize another
-scope, or commit changes.
+a selected scope still needs a binary update. Failed or malformed inspection,
+or uninspectable/uncertain selected scopes, stop changes; do not guess repairs.
+Repair selected scopes in `data.scopes` order (global then project). Before each
+repair, inspect again and use only the fresh envelope's exact executable/args/cwd/env,
+including CODEX_HOME, for a selected scope still needing a safe repair.
+Stop on repair failure. Re-inspect afterward and report completed
+changes and all remaining problems, including scopes excluded by an explicit
+limit. Never commit changes.
 
 For check, invoke the installer with action `check` in a standalone call. If it
 succeeds, resolve and verify the binary, probe `init --help`, and run the
