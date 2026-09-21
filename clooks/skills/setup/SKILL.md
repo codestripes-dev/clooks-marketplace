@@ -55,9 +55,9 @@ examples, replace `/resolved/absolute/path/clooks` with the actual returned path
 never execute the placeholder or substitute a hardcoded managed location.
 
 If an existing binary was reused, show its version and ask whether to keep it or
-update it before continuing setup. If the user chooses update, follow the update
-flow below, then resolve and verify the executable again before proceeding to
-Step 2. If they keep it, continue with that binary. An explicit `update` request
+update it before continuing. If the user chooses update, run only the binary
+update substep below, resolve and verify again, then return here and continue to
+Step 2. Do not enter the generic update flow. An explicit `update` request
 already authorizes the update; do not ask again.
 
 Step 2: Check whether the user is in a project directory (not their home
@@ -120,33 +120,81 @@ binary's directory to the agent launch PATH and relaunch if needed. Do not claim
 hooks are ready merely because install or init succeeded, or infer the agent's
 PATH from a child shell where you changed it.
 
-## Update flow
+## Binary update substep
 
-Users can request this directly with `/clooks:setup update`.
-
-Run the bundled install script with the update action:
+Run:
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/install.sh" update
 ```
 
-Update is explicit and only replaces the managed binary after checksum and version
-validation. If PATH selects an external installation, the installer refuses to
-overwrite it or create a shadow copy; direct the user to that installation method.
-Do not work around this by changing PATH to hide the external binary.
+Stop on failure. If the installer refuses an external or shadowed binary, direct
+the user to its original installation method; do not hide it by changing PATH.
+Then run `resolve` and the resolved executable's `--version` in separate calls.
 
-Report the actual output and resulting version. Stop on failure. Do not claim a
-previous version unless it was successfully observed, and do not run init as an
-implicit part of update.
+## Inspection for update and check
+
+After resolving and verifying the selected executable, run its `init --help`
+and check for `--check`. When supported, inspect from the intended project:
+
+```bash
+"/resolved/absolute/path/clooks" init --check --json
+```
+
+Use `init --check --global --json` only for an explicitly selected global-only
+operation. Require one successful JSON envelope and inspect `data.scopes`;
+`ok: true` alone is not a healthy result.
+
+A scope is repairable only when `needsIntegrationRefresh` is true and `repair`
+is non-null. Execute the selected repair with its exact executable and args, in
+its exact cwd, with its env entries applied as overrides. Do not narrow agents,
+drop `CODEX_HOME`, or reconstruct the command. Failed inspection,
+uninspectable scopes, and null repairs stop integration changes.
+
+## Update flow
+
+Users can request this directly with `/clooks:setup update`.
+
+Resolve and verify the current binary before downloading. If resolution fails,
+or `init --help` lacks `--check`, run the binary update substep, resolve and
+verify again, and require inspection support before integration maintenance.
+Run the binary update substep at most once per request; if it already ran, the
+binary-update intent is satisfied.
+
+Fresh inspection selects a current project needing a binary update or safe
+integration repair by default. An explicit project path takes precedence;
+inspect there and warn instead of initializing an absent or ambiguous project.
+
+- Integration-only with a compatible binary: skip download and run the exact
+  repair.
+- Binary-only or both: run the binary update substep, re-inspect, then run only
+  a fresh safe repair still required by the selected scope.
+- Explicit binary/latest request: update the binary even when integration is
+  compatible, then re-inspect.
+- Only global integration is stale: if global was not already explicitly
+  selected, ask one scope question. If declined, report its exact repair and
+  stop without changes. Refresh only after global/all-scope confirmation; `all`
+  means all installation scopes, not `--agent all`.
+- Otherwise, with no actionable stale project, retain the normal binary-update
+  intent.
+
+After every binary update, re-run the capability probe and inspection. Stop if
+the selected scope still needs a binary update or becomes uncertain. After an
+integration repair, run the same read-only inspection again and report any
+remaining problem. Report other stale global scopes without changing them. No
+current project means no project init. Never add agents, initialize another
+scope, or commit changes.
 
 ## Health check flow
 
-Run the bundled install script with the check action:
+Run:
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/install.sh" check
 ```
 
-Report the exit status, selected binary location and version, project config-file
-presence, and any PATH warning. Missing or broken binaries fail the check. File
-presence alone is not config validation, hook activation, or runtime readiness.
+If it succeeds, resolve and verify the binary, probe `init --help`, and run the
+read-only inspection when supported. Report binary/PATH health separately from
+scope state. If inspection is unsupported, report that an explicit binary update
+is required; do not update. Check authorizes no download, init, profile edit, or
+trust change.
